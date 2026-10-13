@@ -379,6 +379,18 @@ export default function Scene3D() {
             <Ball pos={pa} r={0.1} color={color} />
             <Ball pos={pb} r={0.1} color={color} />
             {isPlane && <Ball pos={pc} r={0.1} color={color} />}
+            {/* 投影连线:线段/三角形在各面上的投影(镜像 Sheet2D 作图线) */}
+            {layers.construct && (
+              <>
+                <Line points={[v3(pa), v3(pb)]} color={color} lineWidth={2} />
+                {isPlane && (
+                  <>
+                    <Line points={[v3(pb), v3(pc)]} color={color} lineWidth={2} />
+                    <Line points={[v3(pc), v3(pa)]} color={color} lineWidth={2} />
+                  </>
+                )}
+              </>
+            )}
             {layers.labels && (
               <>
                 <Tag pos={pa} text={projLabel('a', id)} color={color} />
