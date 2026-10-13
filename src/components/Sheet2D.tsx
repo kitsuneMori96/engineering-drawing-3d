@@ -12,6 +12,8 @@ const P = (p: Vec2): Vec2 => [p[0], -p[1]];
 type DragMode = 'a' | 'b' | 'c' | 'ap' | 'bp' | 'cp' | 'axisMove' | 'axisRot' | 'axis2Move';
 
 const BIG = 200;
+/** 增量旋转灵敏度:rad / 纸面单位(垂直于轴方向的位移) */
+const ROT_SENS = 0.15;
 
 function lineP(a: Vec2, b: Vec2) {
   const [x1, y1] = P(a);
@@ -184,13 +186,15 @@ export default function Sheet2D() {
     } else if (drag === 'axisMove') {
       const p = sys.sheetToLocal('H', sp);
       commit(() => setAxisPos(p));
-    } else if (drag === 'axisRot') {
+    } else if (drag === 'axisRot' && dragStart) {
+      // 增量式 1D 旋转:只取指针相对按下点的"垂直于轴"位移分量,
+      // 灵敏度与柄到转轴的距离(力臂)解耦,近轴拖拽不再过敏;Shift 精细调节
       const h = sys.sheetToLocal('H', sp);
-      const d: Vec2 = [h[0] - axisV1.pos[0], h[1] - axisV1.pos[1]];
-      if (Math.hypot(d[0], d[1]) > 0.4) {
-        const a = Math.atan2(d[1], d[0]);
-        commit(() => setAxisAngle(a));
-      }
+      const a0 = dragStart.off;
+      const n: Vec2 = [-Math.sin(a0), Math.cos(a0)];
+      const d: Vec2 = [h[0] - dragStart.p[0], h[1] - dragStart.p[1]];
+      const k = e.shiftKey ? ROT_SENS * 0.25 : ROT_SENS;
+      commit(() => setAxisAngle(a0 + (d[0] * n[0] + d[1] * n[1]) * k));
     } else if (drag === 'axis2Move' && dragStart) {
       // OX₂ 只有 1 个自由度,滑动方向由模式决定:
       // 'perp'(直线章)沿 a₁b₁;'parallel'(平面章)沿积聚线的法向
@@ -211,6 +215,10 @@ export default function Sheet2D() {
     if (mode === 'axis2Move') {
       const sp = toSheet(e);
       if (sp) setDragStart({ p: sys.sheetToLocal('V1', sp), off: axisH2Offset });
+    }
+    if (mode === 'axisRot') {
+      const sp = toSheet(e);
+      if (sp) setDragStart({ p: sys.sheetToLocal('H', sp), off: axisV1.angle });
     }
     setDrag(mode);
   };
