@@ -382,11 +382,11 @@ export default function Scene3D() {
             {/* 投影连线:线段/三角形在各面上的投影(镜像 Sheet2D 作图线) */}
             {layers.construct && (
               <>
-                <Line points={[v3(pa), v3(pb)]} color={color} lineWidth={2} />
+                <Line points={[v3(pa), v3(pb)]} color={color} dashed dashSize={0.34} gapSize={0.2} lineWidth={2} />
                 {isPlane && (
                   <>
-                    <Line points={[v3(pb), v3(pc)]} color={color} lineWidth={2} />
-                    <Line points={[v3(pc), v3(pa)]} color={color} lineWidth={2} />
+                    <Line points={[v3(pb), v3(pc)]} color={color} dashed dashSize={0.34} gapSize={0.2} lineWidth={2} />
+                    <Line points={[v3(pc), v3(pa)]} color={color} dashed dashSize={0.34} gapSize={0.2} lineWidth={2} />
                   </>
                 )}
               </>
