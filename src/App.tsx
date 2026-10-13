@@ -76,8 +76,8 @@ export default function App() {
         </section>
         <section className="view view-sheet">
           <Sheet2D />
-          <Panel />
         </section>
+        <Panel />
       </main>
 
       <footer className="captionbar">

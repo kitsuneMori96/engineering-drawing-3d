@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { fmt1 } from '../lib/math';
 import { buildSystem, defaultAxisH2Offset, planeAxisAngle } from '../lib/engine';
 import { flowOf } from '../content/chapters';
@@ -32,9 +33,22 @@ export default function Panel() {
   const chapter = useStore((s) => s.chapter);
   // 平面章(进章时 OX₁ 对准水平线)复位按钮走"积聚条件"逻辑
   const alignsToPlane = flowOf(chapter).features.axisV1Default === 'plane-horizontal';
+  // 独立侧栏列,窄屏(<1200px)默认收起,避免挤压投影图
+  const [open, setOpen] = useState(() => window.innerWidth >= 1200);
+
+  if (!open) {
+    return (
+      <button className="panel-rail" onClick={() => setOpen(true)} title="展开控制面板">
+        视图控制 ◀
+      </button>
+    );
+  }
 
   return (
-    <div className="panel">
+    <aside className="panel">
+      <button className="panel-collapse" onClick={() => setOpen(false)} title="收起控制面板(扩大投影图)">
+        ▶ 收起
+      </button>
       <h3>视图控制</h3>
       <label className="slider-row">
         <span>H 面展开</span>
@@ -145,6 +159,6 @@ export default function Panel() {
           <span>{label}</span>
         </label>
       ))}
-    </div>
+    </aside>
   );
 }
