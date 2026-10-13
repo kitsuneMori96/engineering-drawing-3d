@@ -1,14 +1,42 @@
+import { useEffect } from 'react';
 import Scene3D from './components/Scene3D';
 import Sheet2D from './components/Sheet2D';
 import Panel from './components/Panel';
-import { CHAPTERS, flowOf } from './content/chapters';
+import { CHAPTERS, FLOWS, flowOf } from './content/chapters';
 import { useStore } from './store';
+
+/** 从 URL 读取 ?ch=&step=(分享/刷新后恢复现场) */
+function readUrl(): { ch: number; step: number } | null {
+  const q = new URLSearchParams(window.location.search);
+  const chRaw = q.get('ch');
+  if (chRaw === null) return null;
+  const ch = Number(chRaw);
+  if (!Number.isInteger(ch) || !FLOWS[ch]) return null;
+  const step = Math.max(0, Number(q.get('step')) || 0);
+  return { ch, step };
+}
 
 export default function App() {
   const chapter = useStore((s) => s.chapter);
   const setChapter = useStore((s) => s.setChapter);
   const step = useStore((s) => s.step);
   const setStep = useStore((s) => s.setStep);
+
+  // 挂载时恢复 URL 指定的章节/步骤
+  useEffect(() => {
+    const init = readUrl();
+    if (!init) return;
+    if (init.ch !== useStore.getState().chapter) setChapter(init.ch);
+    if (init.step > 0) setStep(init.step);
+  }, [setChapter, setStep]);
+
+  // 章节/步骤变化时写回 URL(replaceState,不产生历史记录)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    q.set('ch', String(chapter));
+    q.set('step', String(step));
+    window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
+  }, [chapter, step]);
 
   const flow = flowOf(chapter);
   const total = Math.max(1, flow.steps.length);

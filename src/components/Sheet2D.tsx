@@ -43,25 +43,35 @@ export default function Sheet2D() {
   const features = flowOf(chapter).features;
   // 平面章节(第 3/4 章)才画第三点与三角形
   const isPlane = features.thirdPoint;
-  const sA: Record<string, Vec2> = {
-    V: sys.sheetPos('V', A),
-    H: sys.sheetPos('H', A),
-    V1: sys.sheetPos('V1', A),
-    ...(showAxis2 ? { H2: sys.sheetPos('H2', A) } : null),
-  };
-  const sB: Record<string, Vec2> = {
-    V: sys.sheetPos('V', B),
-    H: sys.sheetPos('H', B),
-    V1: sys.sheetPos('V1', B),
-    ...(showAxis2 ? { H2: sys.sheetPos('H2', B) } : null),
-  };
-  const sC: Record<string, Vec2> = {
-    V: sys.sheetPos('V', C),
-    H: sys.sheetPos('H', C),
-    V1: sys.sheetPos('V1', C),
-    ...(showAxis2 ? { H2: sys.sheetPos('H2', C) } : null),
-  };
-  const fV1 = sys.sheetFrame('V1');
+  // 各面纸面投影位置:随 sys/点位置 memo,无关状态变化时保持引用稳定
+  const sA: Record<string, Vec2> = useMemo(
+    () => ({
+      V: sys.sheetPos('V', A),
+      H: sys.sheetPos('H', A),
+      V1: sys.sheetPos('V1', A),
+      ...(showAxis2 ? { H2: sys.sheetPos('H2', A) } : null),
+    }),
+    [sys, A, showAxis2],
+  );
+  const sB: Record<string, Vec2> = useMemo(
+    () => ({
+      V: sys.sheetPos('V', B),
+      H: sys.sheetPos('H', B),
+      V1: sys.sheetPos('V1', B),
+      ...(showAxis2 ? { H2: sys.sheetPos('H2', B) } : null),
+    }),
+    [sys, B, showAxis2],
+  );
+  const sC: Record<string, Vec2> = useMemo(
+    () => ({
+      V: sys.sheetPos('V', C),
+      H: sys.sheetPos('H', C),
+      V1: sys.sheetPos('V1', C),
+      ...(showAxis2 ? { H2: sys.sheetPos('H2', C) } : null),
+    }),
+    [sys, C, showAxis2],
+  );
+  const fV1 = useMemo(() => sys.sheetFrame('V1'), [sys]);
   /** OX₂ 的纸面几何(仅当 H₂ 体系激活) */
   const fH2 = showAxis2 ? sys.sheetFrame('H2') : null;
 
@@ -90,12 +100,13 @@ export default function Sheet2D() {
   }, [features, showAxis, sA.V1, sB.V1, fV1]);
 
   const viewBox = useMemo(() => {
+    const fH2v = showAxis2 ? sys.sheetFrame('H2') : null;
     const all = [
       ...Object.values(sA),
       ...Object.values(sB),
       ...(isPlane ? Object.values(sC) : []),
       axisSheet,
-      ...(fH2 ? [fH2.o] : []),
+      ...(fH2v ? [fH2v.o] : []),
       ...(ch5X ? [ch5X] : []),
     ];
     const minX = Math.min(...all.map((p) => p[0]));
@@ -110,7 +121,7 @@ export default function Sheet2D() {
       w: maxX - minX + 2 * padX,
       h: maxY - minY + 2 * padY,
     };
-  }, [sA, sB, axisSheet]); // oxlint-disable-line react-hooks/exhaustive-deps
+  }, [sA, sB, sC, isPlane, axisSheet, ch5X, sys, showAxis2]);
 
   /* ---- 拖拽 ---- */
   const toSheet = (e: { clientX: number; clientY: number }): Vec2 | null => {
