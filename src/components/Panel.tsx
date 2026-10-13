@@ -1,5 +1,6 @@
 import { fmt1 } from '../lib/math';
 import { buildSystem, defaultAxisH2Offset, planeAxisAngle } from '../lib/engine';
+import { flowOf } from '../content/chapters';
 import { DEFAULT_AXIS_V1_PLANE_POS, planeDefs, useStore } from '../store';
 
 const LAYERS: { key: 'planes' | 'projectors' | 'labels' | 'construct' | 'measures'; label: string }[] = [
@@ -29,7 +30,8 @@ export default function Panel() {
   const setAxisH2Offset = useStore((s) => s.setAxisH2Offset);
   const points = useStore((s) => s.points);
   const chapter = useStore((s) => s.chapter);
-  const isPlaneCh = chapter >= 3;
+  // 平面章(进章时 OX₁ 对准水平线)复位按钮走"积聚条件"逻辑
+  const alignsToPlane = flowOf(chapter).features.axisV1Default === 'plane-horizontal';
 
   return (
     <div className="panel">
@@ -87,7 +89,7 @@ export default function Panel() {
           <button
             className="btn"
             onClick={() => {
-              if (isPlaneCh) {
+              if (alignsToPlane) {
                 // 平面章:OX₁ 必须 ∥ 平面内水平线(⇒ V₁ ⊥ 平面 ⇒ 积聚成线)
                 setAxisPos(DEFAULT_AXIS_V1_PLANE_POS);
                 setAxisAngle(planeAxisAngle(points.A, points.B, points.C));
@@ -97,7 +99,7 @@ export default function Panel() {
               }
             }}
           >
-            {isPlaneCh ? '对准水平线(积聚条件)' : '重置为 ∥ ab'}
+            {alignsToPlane ? '对准水平线(积聚条件)' : '重置为 ∥ ab'}
           </button>
         </>
       )}

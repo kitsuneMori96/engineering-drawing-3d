@@ -1,7 +1,8 @@
 import Scene3D from './components/Scene3D';
 import Sheet2D from './components/Sheet2D';
 import Panel from './components/Panel';
-import { CHAPTERS, flowOf, useStore } from './store';
+import { CHAPTERS, flowOf } from './content/chapters';
+import { useStore } from './store';
 
 export default function App() {
   const chapter = useStore((s) => s.chapter);

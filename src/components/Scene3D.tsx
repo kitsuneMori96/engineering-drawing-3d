@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { Vec2, Vec3 } from '../lib/math';
 import { add2, add3, fmt1, len3, mul3, norm2, norm3, sub3 } from '../lib/math';
 import { projLabel, type Frame3, type PlaneDef, type System } from '../lib/engine';
+import { flowOf } from '../content/chapters';
 import { useSystem } from '../lib/useSystem';
 import { useStore } from '../store';
 
@@ -257,10 +258,11 @@ export default function Scene3D() {
   const showAxis2 = useStore((s) => s.showAxis2);
   const showTL = useStore((s) => s.showTL);
   const chapter = useStore((s) => s.chapter);
+  const features = flowOf(chapter).features;
   const [panMode, setPanMode] = useState(false);
   const { A, B, C } = points;
   // 平面章节(3/4)才引入第三点与三角形面
-  const isPlane = chapter >= 3;
+  const isPlane = features.thirdPoint;
   // 面片/轴线按这些点的投影范围自适应(直线章只有 A/B)
   const planePts: Vec3[] = isPlane ? [A, B, C] : [A, B];
 
@@ -388,15 +390,15 @@ export default function Scene3D() {
         );
       })}
 
-      {/* 等距规律:章 0/1/3/6 —— a′→OX 与 a₁→OX₁ 同值 */}
-      {showAxis && layers.measures && (chapter === 0 || chapter === 1 || chapter === 3 || chapter === 6) && (
+      {/* 等距规律:features.measuresV1 —— a′→OX 与 a₁→OX₁ 同值 */}
+      {showAxis && layers.measures && features.measuresV1 && (
         <>
           <AxisMeasure sys={sys} planeId="V" point={A} />
           <AxisMeasure sys={sys} planeId="V1" point={A} />
         </>
       )}
-      {/* 等距链:章 2/4/6 —— a→OX₁ 与 a₂→OX₂ 同值 */}
-      {showAxis && showAxis2 && layers.measures && (chapter === 2 || chapter === 4 || chapter === 6) && h2Def && (
+      {/* 等距链:features.measuresH2 —— a→OX₁ 与 a₂→OX₂ 同值 */}
+      {showAxis && showAxis2 && layers.measures && features.measuresH2 && h2Def && (
         <>
           <AxisMeasure
             sys={sys}
@@ -407,18 +409,18 @@ export default function Scene3D() {
           <AxisMeasure sys={sys} planeId="H2" point={A} />
         </>
       )}
-      {/* 实长/实形判定(镜像 Sheet2D showTL) */}
-      {showTL && showAxis && chapter === 4 && h2Def && (
+      {/* 实形对照(镜像 Sheet2D showTL):features.realShape 时画在 H₂ */}
+      {showTL && showAxis && features.realShape && h2Def && (
         <>
           <SegTL sys={sys} planeId="H2" pa={A} pb={B} name="a₂b₂" real={len3(sub3(B, A))} variant="shape" />
           <SegTL sys={sys} planeId="H2" pa={A} pb={C} name="a₂c₂" real={len3(sub3(C, A))} variant="shape" />
         </>
       )}
-      {showTL && showAxis && chapter !== 4 && v1Def && (
+      {showTL && showAxis && !features.realShape && v1Def && (
         <SegTL sys={sys} planeId="V1" pa={A} pb={B} name="a₁b₁" real={len3(sub3(B, A))} variant="tl" />
       )}
-      {/* 第 3 章结论高亮:积聚成线时 a₁b₁c₁ 共线 */}
-      {chapter === 3 && showAxis && layers.construct && (() => {
+      {/* 积聚成线结论高亮:a₁b₁c₁ 共线 */}
+      {features.collapseLine && showAxis && layers.construct && (() => {
         const pa = sys.renderPos('V1', A);
         const pc = sys.renderPos('V1', C);
         const dir = norm3(sub3(pc, pa));
@@ -430,8 +432,8 @@ export default function Scene3D() {
           />
         );
       })()}
-      {/* 第 5 章:倾角 δ(积聚线与 OX₁ 的夹角;共线破坏时红色警告) */}
-      {chapter === 5 && showAxis && layers.measures && (() => {
+      {/* 倾角 δ(积聚线与 OX₁ 的夹角;共线破坏时红色警告) */}
+      {features.tiltAngle && showAxis && layers.measures && (() => {
         const la = sys.local('V1', A);
         const lb = sys.local('V1', B);
         const lc = sys.local('V1', C);

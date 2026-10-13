@@ -3,7 +3,8 @@ import type { Vec2, Vec3 } from '../lib/math';
 import { add2, fmt1, mul2, norm2 } from '../lib/math';
 import { projLabel } from '../lib/engine';
 import { useSystem } from '../lib/useSystem';
-import { flowOf, useStore } from '../store';
+import { flowOf } from '../content/chapters';
+import { useStore } from '../store';
 
 /** 纸面数学坐标(y 向上)→ SVG 坐标(y 向下) */
 const P = (p: Vec2): Vec2 => [p[0], -p[1]];
@@ -39,8 +40,9 @@ export default function Sheet2D() {
   const [dragStart, setDragStart] = useState<{ p: Vec2; off: number } | null>(null);
 
   const { A, B, C } = points;
+  const features = flowOf(chapter).features;
   // 平面章节(第 3/4 章)才画第三点与三角形
-  const isPlane = chapter >= 3;
+  const isPlane = features.thirdPoint;
   const sA: Record<string, Vec2> = {
     V: sys.sheetPos('V', A),
     H: sys.sheetPos('H', A),
@@ -75,9 +77,9 @@ export default function Sheet2D() {
     return add2(fH.o, add2(mul2(fH.u, axisV1.pos[0]), mul2(fH.v, axisV1.pos[1])));
   }, [sys, axisV1.pos]);
 
-  /** 第 5 章:积聚线 p₁ 与 OX₁ 的交点(倾角 δ 的顶点) */
+  /** 倾角章:积聚线 p₁ 与 OX₁ 的交点(倾角 δ 的顶点) */
   const ch5X = useMemo(() => {
-    if (chapter !== 5 || !showAxis) return null;
+    if (!features.tiltAngle || !showAxis) return null;
     const d1 = norm2([sB.V1[0] - sA.V1[0], sB.V1[1] - sA.V1[1]]);
     const axisD = norm2(fV1.u);
     const denom = d1[0] * axisD[1] - d1[1] * axisD[0];
@@ -85,7 +87,7 @@ export default function Sheet2D() {
     const t =
       ((fV1.o[0] - sA.V1[0]) * axisD[1] - (fV1.o[1] - sA.V1[1]) * axisD[0]) / denom;
     return [sA.V1[0] + d1[0] * t, sA.V1[1] + d1[1] * t] as Vec2;
-  }, [chapter, showAxis, sA.V1, sB.V1, fV1]);
+  }, [features, showAxis, sA.V1, sB.V1, fV1]);
 
   const viewBox = useMemo(() => {
     const all = [
@@ -466,24 +468,24 @@ export default function Sheet2D() {
         </g>
       )}
 
-      {/* 等距规律标注(第 0/1/3/6 章:a₁ 到 OX₁ = a′ 到 OX) */}
-      {showAxis && layers.measures && (chapter === 0 || chapter === 1 || chapter === 3 || chapter === 6) && (
+      {/* 等距规律标注(features.measuresV1:a₁ 到 OX₁ = a′ 到 OX) */}
+      {showAxis && layers.measures && features.measuresV1 && (
         <g>
           {measure([sA.V[0], 0], sA.V, Math.abs(A[1]))}
           {measure(footA1, sA.V1, Math.abs(sys.local('V1', A)[1]))}
         </g>
       )}
 
-      {/* 等距链标注(第 2/4/6 章:a₂ 到 OX₂ = a 到 OX₁) */}
-      {showAxis && showAxis2 && footA2 && layers.measures && (chapter === 2 || chapter === 4 || chapter === 6) && (
+      {/* 等距链标注(features.measuresH2:a₂ 到 OX₂ = a 到 OX₁) */}
+      {showAxis && showAxis2 && footA2 && layers.measures && features.measuresH2 && (
         <g>
           {measure(footA1, sA.H, Math.hypot(sA.H[0] - footA1[0], sA.H[1] - footA1[1]))}
           {measure(footA2, sA.H2!, Math.hypot(sA.H2![0] - footA2[0], sA.H2![1] - footA2[1]))}
         </g>
       )}
 
-      {/* 倾角 δ 弧线(第 5 章:p₁ 与 OX₁ 的夹角;条件破坏时变红警告) */}
-      {showAxis && layers.measures && chapter === 5 && ch5X && (() => {
+      {/* 倾角 δ 弧线(features.tiltAngle:p₁ 与 OX₁ 的夹角;条件破坏时变红警告) */}
+      {showAxis && layers.measures && features.tiltAngle && ch5X && (() => {
         const d1 = norm2([sB.V1[0] - sA.V1[0], sB.V1[1] - sA.V1[1]]);
         const axisD = norm2(fV1.u);
         const a0 = Math.atan2(axisD[1], axisD[0]);
@@ -524,8 +526,8 @@ export default function Sheet2D() {
 
       {/* 实长/实形标注 */}
       {showTL && showAxis && (
-        chapter === 4 && sA.H2 && sB.H2 && sC.H2 ? (
-          /* 第 4 章:对应边对照 —— a₂b₂ = |AB|、a₂c₂ = |AC|(两组对应边相等 ⇒ 实形) */
+        features.realShape && sA.H2 && sB.H2 && sC.H2 ? (
+          /* 实形章:对应边对照 —— a₂b₂ = |AB|、a₂c₂ = |AC|(两组对应边相等 ⇒ 实形) */
           (() => {
             const pairs: Array<[Vec2, Vec2, number, string]> = [
               [sA.H2, sB.H2, Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]), 'a₂b₂'],
