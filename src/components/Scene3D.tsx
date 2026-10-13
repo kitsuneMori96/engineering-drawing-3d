@@ -8,7 +8,6 @@ import { projLabel, type Frame3, type PlaneDef, type System } from '../lib/engin
 import { useSystem } from '../lib/useSystem';
 import { useStore } from '../store';
 
-const PLANE_SIZE = 12;
 const OBJ = '#ef4444';
 const MEAS = '#c026d3';
 const MEAS_BAD = '#dc2626';
@@ -38,12 +37,12 @@ function Tag({ pos, text, color, dy = 0.32 }: { pos: Vec3; text: string; color: 
   );
 }
 
-function frameCorners(f: Frame3, size: number): [number, number, number][] {
-  const c = (u: number, v: number) => v3(add3(f.o, add3(mul3(f.u, u), mul3(f.v, v))));
-  return [c(0, 0), c(size, 0), c(size, size), c(0, size), c(0, 0)];
-}
-
-function PlaneQuad({ def, sys }: { def: PlaneDef; sys: System }) {
+/**
+ * 投影面面片:不再固定画在原点一侧的 12×12,而是按该面上所有投影点的
+ * 局部坐标包围盒(u 沿轴、v 到轴)自适应生成,并始终包含轴线(v=0),
+ * 保证"点永远落在面内、面永远托着点"。
+ */
+function PlaneQuad({ def, sys, pts }: { def: PlaneDef; sys: System; pts: Vec3[] }) {
   const f = sys.renderFrame(def.id);
   const q = new THREE.Quaternion().setFromRotationMatrix(
     new THREE.Matrix4().makeBasis(
@@ -52,12 +51,33 @@ function PlaneQuad({ def, sys }: { def: PlaneDef; sys: System }) {
       new THREE.Vector3(...f.n),
     ),
   );
-  const center = add3(f.o, add3(mul3(f.u, PLANE_SIZE / 2), mul3(f.v, PLANE_SIZE / 2)));
-  const corners = frameCorners(f, PLANE_SIZE);
+  // 包围盒:含轴线原点 (0,0),外扩边距;每向至少半宽 3,保证面片不至于太小
+  const locals = pts.map((P) => sys.local(def.id, P));
+  const us = locals.map((l) => l[0]);
+  const vs = locals.map((l) => l[1]);
+  const MARGIN = 1.6;
+  const uMin = Math.min(0, ...us) - MARGIN;
+  const uMax = Math.max(0, ...us) + MARGIN;
+  const vMin = Math.min(0, ...vs) - MARGIN;
+  const vMax = Math.max(0, ...vs) + MARGIN;
+  const uC = (uMin + uMax) / 2;
+  const vC = (vMin + vMax) / 2;
+  const uH = Math.max(3, (uMax - uMin) / 2);
+  const vH = Math.max(3, (vMax - vMin) / 2);
+  const corner = (u: number, v: number): [number, number, number] =>
+    v3(add3(f.o, add3(mul3(f.u, u), mul3(f.v, v))));
+  const corners = [
+    corner(uC - uH, vC - vH),
+    corner(uC + uH, vC - vH),
+    corner(uC + uH, vC + vH),
+    corner(uC - uH, vC + vH),
+    corner(uC - uH, vC - vH),
+  ];
+  const center = corner(uC, vC);
   return (
     <group position={v3(center)} quaternion={q}>
       <mesh>
-        <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
+        <planeGeometry args={[uH * 2, vH * 2]} />
         <meshBasicMaterial
           color={def.color}
           transparent
@@ -72,9 +92,11 @@ function PlaneQuad({ def, sys }: { def: PlaneDef; sys: System }) {
 }
 
 // 变换轴:画在所属平面上(子面的 u 轴方向,原点在轴上),着子面色
-function AxisLine({ sys, def }: { sys: System; def: PlaneDef }) {
+// 长度覆盖该面上投影点的 u 轴范围(含标签余量)
+function AxisLine({ sys, def, pts }: { sys: System; def: PlaneDef; pts: Vec3[] }) {
   const f = sys.renderFrame(def.id);
-  const HALF = 7;
+  const us = pts.map((P) => sys.local(def.id, P)[0]);
+  const HALF = Math.max(7, Math.min(11, Math.max(0, ...us.map(Math.abs)) + 1.5));
   const a = v3(add3(f.o, mul3(f.u, -HALF)));
   const b = v3(add3(f.o, mul3(f.u, HALF)));
   const lp = v3(add3(f.o, mul3(f.u, HALF + 0.7)));
@@ -239,6 +261,8 @@ export default function Scene3D() {
   const { A, B, C } = points;
   // 平面章节(3/4)才引入第三点与三角形面
   const isPlane = chapter >= 3;
+  // 面片/轴线按这些点的投影范围自适应(直线章只有 A/B)
+  const planePts: Vec3[] = isPlane ? [A, B, C] : [A, B];
 
   // 三角形面片(半透明,直观点与投影面的关系)
   const triGeo = useMemo(() => {
@@ -301,12 +325,12 @@ export default function Scene3D() {
       <Html position={[0, 11.6, 0]} center><span className="axis3d">Y</span></Html>
       <Html position={[0, 0, 11.6]} center><span className="axis3d">Z</span></Html>
 
-      {/* 变换轴(独立于 layers.planes,始终跟随讲解步骤) */}
-      <AxisLine sys={sys} def={hDef} />
-      {showAxis && v1Def && <AxisLine sys={sys} def={v1Def} />}
-      {showAxis2 && h2Def && <AxisLine sys={sys} def={h2Def} />}
+      {/* 变换轴(独立于 layers.planes,始终跟随讲解步骤;长度覆盖投影点范围) */}
+      <AxisLine sys={sys} def={hDef} pts={planePts} />
+      {showAxis && v1Def && <AxisLine sys={sys} def={v1Def} pts={planePts} />}
+      {showAxis2 && h2Def && <AxisLine sys={sys} def={h2Def} pts={planePts} />}
 
-      {layers.planes && planes.map((def) => <PlaneQuad key={def.id} def={def} sys={sys} />)}
+      {layers.planes && planes.map((def) => <PlaneQuad key={def.id} def={def} sys={sys} pts={planePts} />)}
 
       {/* 几何元素 */}
       <Line points={[v3(A), v3(B)]} color={OBJ} lineWidth={3} />
