@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Vec2, Vec3 } from '../lib/math';
 import { add2, fmt1, mul2, norm2 } from '../lib/math';
 import { projLabel } from '../lib/engine';
@@ -125,6 +125,28 @@ export default function Sheet2D() {
     return [p.x, -p.y];
   };
 
+  /* 拖拽提交合并:pointermove 可达 1000Hz,只在每帧提交最后一次更新,
+     使高频拖拽期间的"系统重建 + 2D/3D 双视图重渲染"上限为每帧一次。 */
+  const pendingCommit = useRef<(() => void) | null>(null);
+  const commitRaf = useRef(0);
+  const commit = (fn: () => void) => {
+    pendingCommit.current = fn;
+    if (!commitRaf.current) {
+      commitRaf.current = requestAnimationFrame(() => {
+        commitRaf.current = 0;
+        const f = pendingCommit.current;
+        pendingCommit.current = null;
+        f?.();
+      });
+    }
+  };
+  useEffect(
+    () => () => {
+      if (commitRaf.current) cancelAnimationFrame(commitRaf.current);
+    },
+    [],
+  );
+
   const onMove = (e: React.PointerEvent) => {
     if (!drag) return;
     const sp = toSheet(e);
@@ -133,27 +155,31 @@ export default function Sheet2D() {
       const k = drag === 'a' ? 'A' : 'B';
       const cur = points[k];
       const h = sys.sheetToLocal('H', sp);
-      setPoint(k, [h[0], cur[1], h[1]]);
+      commit(() => setPoint(k, [h[0], cur[1], h[1]]));
     } else if (drag === 'ap' || drag === 'bp') {
       const k = drag === 'ap' ? 'A' : 'B';
       const cur = points[k];
       const v = sys.sheetToLocal('V', sp);
-      setPoint(k, [v[0], v[1], cur[2]]);
+      commit(() => setPoint(k, [v[0], v[1], cur[2]]));
     } else if (drag === 'c' || drag === 'cp') {
       const cur = points.C;
       if (drag === 'c') {
         const h = sys.sheetToLocal('H', sp);
-        setPoint('C', [h[0], cur[1], h[1]]);
+        commit(() => setPoint('C', [h[0], cur[1], h[1]]));
       } else {
         const v = sys.sheetToLocal('V', sp);
-        setPoint('C', [v[0], v[1], cur[2]]);
+        commit(() => setPoint('C', [v[0], v[1], cur[2]]));
       }
     } else if (drag === 'axisMove') {
-      setAxisPos(sys.sheetToLocal('H', sp));
+      const p = sys.sheetToLocal('H', sp);
+      commit(() => setAxisPos(p));
     } else if (drag === 'axisRot') {
       const h = sys.sheetToLocal('H', sp);
       const d: Vec2 = [h[0] - axisV1.pos[0], h[1] - axisV1.pos[1]];
-      if (Math.hypot(d[0], d[1]) > 0.4) setAxisAngle(Math.atan2(d[1], d[0]));
+      if (Math.hypot(d[0], d[1]) > 0.4) {
+        const a = Math.atan2(d[1], d[0]);
+        commit(() => setAxisAngle(a));
+      }
     } else if (drag === 'axis2Move' && dragStart) {
       // OX₂ 只有 1 个自由度,滑动方向由模式决定:
       // 'perp'(直线章)沿 a₁b₁;'parallel'(平面章)沿积聚线的法向
@@ -163,7 +189,8 @@ export default function Sheet2D() {
       const lB = sys.local('V1', B);
       const e = norm2([lB[0] - lA[0], lB[1] - lA[1]]);
       const dir: Vec2 = axisH2Mode === 'parallel' ? [-e[1], e[0]] : e;
-      setAxisH2Offset(dragStart.off + d[0] * dir[0] + d[1] * dir[1]);
+      const off = dragStart.off + d[0] * dir[0] + d[1] * dir[1];
+      commit(() => setAxisH2Offset(off));
     }
   };
 
@@ -177,6 +204,14 @@ export default function Sheet2D() {
     setDrag(mode);
   };
   const endDrag = () => {
+    // 松开前把最后一帧的待提交更新立即落盘,避免丢终点
+    if (commitRaf.current) {
+      cancelAnimationFrame(commitRaf.current);
+      commitRaf.current = 0;
+    }
+    const f = pendingCommit.current;
+    pendingCommit.current = null;
+    f?.();
     setDrag(null);
     setDragStart(null);
   };
