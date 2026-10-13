@@ -3,6 +3,8 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // 相对路径:支持 GitHub Pages 项目子路径(/huanmian3d/)部署
+  base: './',
   plugins: [react()],
   build: {
     rolldownOptions: {
