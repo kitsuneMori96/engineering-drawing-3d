@@ -36,19 +36,28 @@ export default function Panel() {
   // 独立侧栏列,窄屏(<1200px)默认收起,避免挤压投影图
   const [open, setOpen] = useState(() => window.innerWidth >= 1200);
 
-  if (!open) {
-    return (
-      <button className="panel-rail" onClick={() => setOpen(true)} title="展开控制面板">
-        视图控制 ◀
-      </button>
-    );
-  }
-
   return (
-    <aside className="panel">
-      <button className="panel-collapse" onClick={() => setOpen(false)} title="收起控制面板(扩大投影图)">
-        ▶ 收起
+    <aside className={`panel${open ? '' : ' collapsed'}`}>
+      <button
+        className="panel-toggle"
+        onClick={() => setOpen((o) => !o)}
+        title={open ? '收起控制面板(扩大投影图)' : '展开控制面板'}
+        aria-expanded={open}
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="9 6 15 12 9 18" />
+        </svg>
       </button>
+      <div className="panel-body">
       <h3>视图控制</h3>
       <label className="slider-row">
         <span>H 面展开</span>
@@ -159,6 +168,8 @@ export default function Panel() {
           <span>{label}</span>
         </label>
       ))}
+      </div>
+      <span className="panel-rail-label">视图控制</span>
     </aside>
   );
 }
