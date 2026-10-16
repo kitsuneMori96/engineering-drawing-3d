@@ -1,4 +1,4 @@
-import type { AxisH2Mode } from '../lib/engine';
+import type { AxisH2Mode } from '../../lib/engine';
 
 export interface Chapter {
   id: number;

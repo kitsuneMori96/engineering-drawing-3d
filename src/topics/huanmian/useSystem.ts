@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { planeDefs, useStore } from '../store';
-import { buildSystem, computeAxisH2, type PlaneDef, type System } from './engine';
+import { planeDefs, useStore } from './store';
+import { buildSystem, computeAxisH2, type PlaneDef, type System } from '../../lib/engine';
 
 /**
  * 投影系统的唯一来源:模块级单 rAF 补间 + 单份 buildSystem 缓存。

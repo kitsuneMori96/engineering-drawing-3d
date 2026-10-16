@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { fmt1 } from '../lib/math';
-import { buildSystem, defaultAxisH2Offset, planeAxisAngle } from '../lib/engine';
-import { flowOf } from '../content/chapters';
-import { DEFAULT_AXIS_V1_PLANE_POS, planeDefs, useStore } from '../store';
+import { fmt1 } from '../../lib/math';
+import { buildSystem, defaultAxisH2Offset, planeAxisAngle } from '../../lib/engine';
+import { flowOf } from './chapters';
+import { DEFAULT_AXIS_V1_PLANE_POS, planeDefs, useStore } from './store';
 
 const LAYERS: { key: 'planes' | 'projectors' | 'labels' | 'construct' | 'measures'; label: string }[] = [
   { key: 'planes', label: '投影面' },

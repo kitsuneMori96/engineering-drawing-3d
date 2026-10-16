@@ -1,14 +1,14 @@
 import { create } from 'zustand';
-import type { Vec2, Vec3 } from './lib/math';
-import { norm2 } from './lib/math';
+import type { Vec2, Vec3 } from '../../lib/math';
+import { norm2 } from '../../lib/math';
 import {
   buildSystem,
   defaultAxisH2Offset,
   planeAxisAngle,
   type AxisH2Mode,
   type PlaneDef,
-} from './lib/engine';
-import { FLOWS, type StepTarget } from './content/chapters';
+} from '../../lib/engine';
+import { FLOWS, type StepTarget } from './chapters';
 
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));

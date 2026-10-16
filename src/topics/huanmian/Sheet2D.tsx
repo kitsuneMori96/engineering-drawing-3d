@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Vec2, Vec3 } from '../lib/math';
-import { add2, fmt1, mul2, norm2 } from '../lib/math';
-import { projLabel } from '../lib/engine';
-import { useSystem } from '../lib/useSystem';
-import { flowOf } from '../content/chapters';
-import { useStore } from '../store';
+import type { Vec2, Vec3 } from '../../lib/math';
+import { add2, fmt1, mul2, norm2 } from '../../lib/math';
+import { projLabel } from '../../lib/engine';
+import { useSystem } from './useSystem';
+import { flowOf } from './chapters';
+import { useStore } from './store';
 
 /** 纸面数学坐标(y 向上)→ SVG 坐标(y 向下) */
 const P = (p: Vec2): Vec2 => [p[0], -p[1]];
