@@ -63,25 +63,32 @@ export default function Sheet2D() {
   const { A, B, C, D, E } = points;
 
   /* ---- 各点两面投影的纸面位置(跟随展开补间) ---- */
-  const keyOf = (k: PtKey): Vec3 | null => points[k];
   const sheet = (id: string, k: PtKey): Vec2 | null => {
-    const p = keyOf(k);
+    const p = points[k];
     return p ? sys.sheetPos(id, p) : null;
   };
-  const sV = {
-    A: sheet('V', 'A'),
-    B: sheet('V', 'B'),
-    C: sheet('V', 'C'),
-    D: sheet('V', 'D'),
-    E: sheet('V', 'E'),
-  };
-  const sH = {
-    A: sheet('H', 'A'),
-    B: sheet('H', 'B'),
-    C: sheet('H', 'C'),
-    D: sheet('H', 'D'),
-    E: sheet('H', 'E'),
-  };
+  const sV = useMemo(
+    () => ({
+      A: sheet('V', 'A'),
+      B: sheet('V', 'B'),
+      C: sheet('V', 'C'),
+      D: sheet('V', 'D'),
+      E: sheet('V', 'E'),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sys, points],
+  );
+  const sH = useMemo(
+    () => ({
+      A: sheet('H', 'A'),
+      B: sheet('H', 'B'),
+      C: sheet('H', 'C'),
+      D: sheet('H', 'D'),
+      E: sheet('H', 'E'),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sys, points],
+  );
 
   /* ---- ch0 重影判别(实时由坐标得出) ---- */
   const abV = A && B && coincidentPair(A, B, 'V');

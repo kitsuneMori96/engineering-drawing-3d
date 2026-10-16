@@ -22,7 +22,7 @@ export const TOPICS: TopicMeta[] = [
     title: '判别可见性',
     summary: '重影点与括号标注 → 两直线投影交叉的可见性判别 → 直线与平面相交的可见性判别,拖拽实时验证。',
     chapterCount: 3,
-    ready: false,
+    ready: true,
   },
   {
     id: 'basics',
