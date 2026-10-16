@@ -2,35 +2,19 @@ import { useEffect } from 'react';
 import Scene3D from './Scene3D';
 import Sheet2D from './Sheet2D';
 import Panel from './Panel';
-import { CHAPTERS, FLOWS, flowOf } from './chapters';
+import { CHAPTERS, flowOf } from './chapters';
 import { useStore } from './store';
+import { useNav } from '../../nav';
 
-/** 从 URL 读取 ?ch=&step=(分享/刷新后恢复现场) */
-function readUrl(): { ch: number; step: number } | null {
-  const q = new URLSearchParams(window.location.search);
-  const chRaw = q.get('ch');
-  if (chRaw === null) return null;
-  const ch = Number(chRaw);
-  if (!Number.isInteger(ch) || !FLOWS[ch]) return null;
-  const step = Math.max(0, Number(q.get('step')) || 0);
-  return { ch, step };
-}
-
-export default function App() {
+export default function HuanmianApp() {
   const chapter = useStore((s) => s.chapter);
   const setChapter = useStore((s) => s.setChapter);
   const step = useStore((s) => s.step);
   const setStep = useStore((s) => s.setStep);
+  const setTopic = useNav((s) => s.setTopic);
 
-  // 挂载时恢复 URL 指定的章节/步骤
-  useEffect(() => {
-    const init = readUrl();
-    if (!init) return;
-    if (init.ch !== useStore.getState().chapter) setChapter(init.ch);
-    if (init.step > 0) setStep(init.step);
-  }, [setChapter, setStep]);
-
-  // 章节/步骤变化时写回 URL(replaceState,不产生历史记录)
+  // 章节/步骤变化时写回 URL(replaceState,不产生历史记录);
+  // 首屏恢复在 store 模块初始化时完成(避免与回写竞态)
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     q.set('ch', String(chapter));
@@ -55,6 +39,9 @@ export default function App() {
           <h1>换面法 · 3D 交互学习</h1>
         </div>
         <nav className="chapters">
+          <button className="chip home-chip" onClick={() => setTopic('home')} title="返回主题首页">
+            ⌂ 首页
+          </button>
           {CHAPTERS.map((c) => (
             <button
               key={c.id}

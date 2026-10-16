@@ -144,6 +144,22 @@ export const useStore = create<State>((set, get) => ({
   }),
 }));
 
+/** 首屏从 URL 恢复章节/步骤:必须在模块初始化时执行(先于视图的 URL 回写),
+ *  放 useEffect 会与回写竞态导致恢复被覆盖——旧版即败在此。 */
+if (typeof window !== 'undefined') {
+  const q = new URLSearchParams(window.location.search);
+  const topic = q.get('topic');
+  const chRaw = q.get('ch');
+  if (chRaw !== null && (topic === null || topic === 'huanmian')) {
+    const ch = Number(chRaw);
+    if (Number.isInteger(ch) && FLOWS[ch]) {
+      useStore.getState().setChapter(ch);
+      const step = Math.max(0, Number(q.get('step')) || 0);
+      if (step > 0) useStore.getState().setStep(step);
+    }
+  }
+}
+
 /** 当前章节下的投影面链(V → H → V₁,可选 H₂) */
 export function planeDefs(axisV1: { pos: Vec2; angle: number }): PlaneDef[] {
   return [
