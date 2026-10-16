@@ -3,7 +3,7 @@ import { fmt1 } from '../../lib/math';
 import { planeAxisAngle } from '../../lib/engine';
 import { visFlowOf } from './chapters';
 import { DEFAULT_AXIS_V1_POS, useVisStore } from './store';
-import { isTrueIntersection } from './vis';
+import { isTrueIntersection, lineVsPlane } from './vis';
 
 const LAYERS: { key: 'projectors' | 'labels' | 'construct' | 'measures' | 'hidden'; label: string }[] = [
   { key: 'projectors', label: '投影连线' },
@@ -31,9 +31,11 @@ export default function Panel() {
 
   const flow = visFlowOf(chapter);
   const kind = flow.features.kind;
-  const { A, B, C, D } = points;
+  const { A, B, C, D, E } = points;
   const trueNow =
     kind === 'crossing' && A && B && C && D ? isTrueIntersection(A, B, C, D).yes : false;
+  const lpNow =
+    kind === 'linePlane' && A && B && C && D && E ? lineVsPlane(D, E, A, B, C) : null;
   // 独立侧栏列,窄屏默认收起
   const [open, setOpen] = useState(() => window.innerWidth >= 1200);
 
@@ -99,6 +101,21 @@ export default function Panel() {
             <button className="btn" onClick={presetTrueIntersection}>
               构造真相交
             </button>
+          </>
+        )}
+
+        {kind === 'linePlane' && (
+          <>
+            <h3>判别状态</h3>
+            <div className="axis-row">
+              <span>直线与平面</span>
+              <span
+                className="num"
+                style={{ color: !lpNow ? '#dc2626' : lpNow.insideTri ? '#0f766e' : '#b45309' }}
+              >
+                {!lpNow ? 'DE ∥ 平面(无交点)' : lpNow.insideTri ? 'K 在三角形内(有挡段)' : 'K 在三角形外(全可见)'}
+              </span>
+            </div>
           </>
         )}
 

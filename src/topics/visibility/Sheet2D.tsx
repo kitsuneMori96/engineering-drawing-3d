@@ -9,13 +9,16 @@ import {
   coincidentPair,
   compareValue,
   crossStub,
+  hiddenInterval,
   isTrueIntersection,
   linePoint,
+  lineVsPlane,
   parenthesized,
   projH,
   projV,
   segSegCross,
   visibleOfCoincident,
+  type Face,
 } from './vis';
 
 /** 纸面数学坐标(y 向上)→ SVG 坐标(y 向下) */
@@ -107,6 +110,40 @@ export default function Sheet2D() {
     return { X: xH.pt, M, N, mVis: compareValue(M, 'H') >= compareValue(N, 'H') };
   }, [xH, A, B, C, D]);
 
+  /* ---- ch2 线面相交分析 ---- */
+  const lp =
+    kind === 'linePlane' && A && B && C && D && E ? lineVsPlane(D, E, A, B, C) : null;
+  const hidV =
+    kind === 'linePlane' && A && B && C && D && E
+      ? hiddenInterval('V', D, E, A, B, C)
+      : null;
+  const hidH =
+    kind === 'linePlane' && A && B && C && D && E
+      ? hiddenInterval('H', D, E, A, B, C)
+      : null;
+  const s1 = useMemo(() => {
+    if (!showV1) return null;
+    const g = (k: PtKey): Vec2 | null => {
+      const p = points[k];
+      return p ? sys.sheetPos('V1', p) : null;
+    };
+    return { A: g('A'), B: g('B'), C: g('C'), D: g('D'), E: g('E') };
+  }, [showV1, sys, points]);
+  /** V₁ 面上 A/B/C 是否积聚共线(轴已对准平面法向) */
+  const collapsed = useMemo(() => {
+    if (!s1?.A || !s1.B || !s1.C) return false;
+    const ux = s1.B[0] - s1.A[0];
+    const uy = s1.B[1] - s1.A[1];
+    const un = Math.hypot(ux, uy);
+    if (un < 1e-6) return false;
+    const dist = Math.abs(ux * (s1.C[1] - s1.A[1]) - uy * (s1.C[0] - s1.A[0])) / un;
+    return dist < 0.05;
+  }, [s1]);
+  const kSheet = (face: Face, s: number): Vec2 | null => {
+    if (!D || !E) return null;
+    return sys.sheetPos(face, linePoint(D, E, s));
+  };
+
   /* ---- 视口自适应 ---- */
   const viewBox = useMemo(() => {
     const all: Vec2[] = [];
@@ -114,7 +151,10 @@ export default function Sheet2D() {
       if (sV[k]) all.push(sV[k]!);
       if (sH[k]) all.push(sH[k]!);
     }
-    if (showV1) all.push(sys.sheetFrame('V1').o);
+    if (showV1) {
+      all.push(sys.sheetFrame('V1').o);
+      for (const k of ['A', 'B', 'C', 'D', 'E'] as PtKey[]) if (s1?.[k]) all.push(s1[k]!);
+    }
     const pts = candV ? [candV.X] : [];
     const candHpts = candH && step >= 4 ? [candH.X] : [];
     all.push(...pts, ...candHpts);
@@ -132,7 +172,7 @@ export default function Sheet2D() {
       w: maxX - minX + 2 * padX,
       h: maxY - minY + 2 * padY,
     };
-  }, [sV, sH, showV1, sys, candV, candH, step]);
+  }, [sV, sH, showV1, sys, candV, candH, step, s1]);
 
   /* ---- 拖拽(pointermove 高频,每帧只提交最后一次) ---- */
   const toSheet = (e: { clientX: number; clientY: number }): Vec2 | null => {
@@ -388,14 +428,40 @@ export default function Sheet2D() {
     }
     /* linePlane */
     if (!A || !B || !C || !D || !E) return null;
+    /** DE 投影按被挡区间拆成 实-虚-实 三段(face 视图) */
+    const deLine = (face: Face, hidden: [number, number] | null, show: boolean) => {
+      const q0 = sys.sheetPos(face, D);
+      const q1 = sys.sheetPos(face, E);
+      const seg = (t0: number, t1: number, dash: boolean) => {
+        const a = hidden ? kSheet(face, t0)! : q0;
+        const b = hidden ? kSheet(face, t1)! : q1;
+        return (
+          <line
+            {...lineP(a, b)}
+            stroke="#ef4444"
+            strokeWidth={0.09}
+            strokeDasharray={dash && show ? '0.26 0.2' : undefined}
+          />
+        );
+      };
+      if (!hidden || !show) return <g>{seg(0, 1, false)}</g>;
+      const [h0, h1] = hidden;
+      return (
+        <g>
+          {h0 > 1e-6 && seg(0, h0, false)}
+          {seg(h0, h1, true)}
+          {h1 < 1 - 1e-6 && seg(h1, 1, false)}
+        </g>
+      );
+    };
     return (
       <g>
         {sV.A && sV.B && sV.C && triFill([sV.A, sV.B, sV.C], '#3b82f6')}
         {sV.A && sV.B && sV.C && triEdges([sV.A, sV.B, sV.C], '#64748b')}
         {sH.A && sH.B && sH.C && triFill([sH.A, sH.B, sH.C], '#10b981')}
         {sH.A && sH.B && sH.C && triEdges([sH.A, sH.B, sH.C], '#64748b')}
-        {sV.D && sV.E && <line {...lineP(sV.D, sV.E)} stroke="#ef4444" strokeWidth={0.09} />}
-        {sH.D && sH.E && <line {...lineP(sH.D, sH.E)} stroke="#ef4444" strokeWidth={0.09} />}
+        {deLine('V', hidV, step >= 3 && layers.hidden)}
+        {deLine('H', hidH, step >= 4 && layers.hidden)}
       </g>
     );
   };
@@ -587,6 +653,101 @@ export default function Sheet2D() {
   const axisDir = showV1 ? norm2(sys.sheetFrame('V1').u) : null;
   const axisO = showV1 ? sys.sheetFrame('V1').o : null;
 
+  /** ch2:V₁ 积聚线、d₁e₁、反投影作图线、K 点两面投影与虚线结论 */
+  const linePlaneMarks = () => {
+    if (kind !== 'linePlane' || !showV1 || !s1 || !A || !B || !C || !D || !E) return null;
+    const out: React.ReactNode[] = [];
+    if (layers.construct) {
+      /* 积聚线 p₁(V₁ 上 A/B/C 共线)或退化前的投影三角形 */
+      if (collapsed && s1.A && s1.B) {
+        const d = norm2([s1.B[0] - s1.A[0], s1.B[1] - s1.A[1]]);
+        out.push(
+          <line
+            key="p1"
+            {...lineP(add2(s1.A, mul2(d, -6)), add2(s1.B, mul2(d, 6)))}
+            stroke="#d97706"
+            strokeWidth={0.075}
+          />,
+        );
+        if (layers.labels && s1.C)
+          out.push(conclusion(s1.C, 'p₁(平面积聚)', '#b45309', 0.4, 0.45));
+      } else if (s1.A && s1.B && s1.C) {
+        out.push(<g key="t1">{triEdges([s1.A, s1.B, s1.C], '#d97706')}</g>);
+      }
+      /* d₁e₁:直线在 V₁ 上的投影 */
+      if (s1.D && s1.E)
+        out.push(
+          <line key="d1e1" {...lineP(s1.D, s1.E)} stroke="#ef4444" strokeWidth={0.075} />,
+        );
+      /* 投影连线:H 面点 ⟂ OX₁ 到 V₁ 点 */
+      if (layers.projectors)
+        for (const k of ['A', 'B', 'C', 'D', 'E'] as PtKey[])
+          if (sH[k] && s1[k])
+            out.push(
+              <line key={`hv1${k}`} {...lineP(sH[k]!, s1[k]!)} {...dashed} stroke="#94a3b8" />,
+            );
+      if (layers.labels) {
+        if (s1.D) out.push(conclusion(s1.D, 'd₁', '#ef4444', -0.75, 0.4));
+        if (s1.E) out.push(conclusion(s1.E, 'e₁', '#ef4444', 0.4, 0.4));
+      }
+    }
+    /* k₁ → k′、k:交点反投影(解析 K 与辅助面作图等价) */
+    if (step >= 2 && lp && lp.insideTri) {
+      const k1 = sys.sheetPos('V1', lp.K);
+      const kv = sys.sheetPos('V', lp.K);
+      const kh = sys.sheetPos('H', lp.K);
+      out.push(
+        <g key="kback">
+          <line {...lineP(k1, kv)} {...dashed} stroke="#94a3b8" />
+          <line {...lineP(kv, kh)} {...dashed} stroke="#94a3b8" />
+          <circle cx={P(k1)[0]} cy={P(k1)[1]} r={0.15} fill={C_DERIVED} />
+          <circle cx={P(kv)[0]} cy={P(kv)[1]} r={0.15} fill={C_DERIVED} />
+          <circle cx={P(kh)[0]} cy={P(kh)[1]} r={0.15} fill={C_DERIVED} />
+          {layers.labels && (
+            <>
+              {conclusion(k1, 'k₁', C_DERIVED, 0.35, -0.5)}
+              {conclusion(kv, 'k′', C_DERIVED, 0.35, 0.55)}
+              {conclusion(kh, 'k', C_DERIVED, 0.35, -0.55)}
+            </>
+          )}
+        </g>,
+      );
+    }
+    /* 虚线段结论 */
+    if (lp && lp.insideTri) {
+      const side = (iv: [number, number]): 'd' | 'e' => (lp.s - iv[0] < iv[1] - lp.s ? 'e' : 'd');
+      if (step >= 3 && layers.hidden && hidV && D && E) {
+        const mid = kSheet('V', (hidV[0] + hidV[1]) / 2);
+        if (mid)
+          out.push(
+            conclusion(
+              mid,
+              side(hidV) === 'e' ? '∵ 后方段被挡 → k′e′ 画虚线' : '∵ 后方段被挡 → d′k′ 画虚线',
+              C_BAD,
+              0,
+              -0.7,
+              'middle',
+            ),
+          );
+      }
+      if (step >= 4 && layers.hidden && hidH && D && E) {
+        const mid = kSheet('H', (hidH[0] + hidH[1]) / 2);
+        if (mid)
+          out.push(
+            conclusion(
+              mid,
+              side(hidH) === 'e' ? '∵ 下方段被挡 → ke 画虚线' : '∵ 下方段被挡 → dk 画虚线',
+              C_BAD,
+              0,
+              0.9,
+              'middle',
+            ),
+          );
+      }
+    }
+    return out;
+  };
+
   /* ---- 标签(带括号判别) ---- */
   const labelV = (k: PtKey, base: string): string => {
     const lbl = projLabel(base, 'V');
@@ -661,6 +822,7 @@ export default function Sheet2D() {
       {/* 章专属判别标注 */}
       {coincidentMarks()}
       {crossingMarks()}
+      {linePlaneMarks()}
 
       {/* 新轴 OX₁(ch2) */}
       {showV1 && axisO && axisDir && (

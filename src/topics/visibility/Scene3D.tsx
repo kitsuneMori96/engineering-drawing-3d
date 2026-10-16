@@ -16,7 +16,9 @@ import { visFlowOf, type PtKey } from './chapters';
 import { useVisStore } from './store';
 import {
   coincidentPair,
+  hiddenInterval,
   linePoint,
+  lineVsPlane,
   parenthesized,
   projV,
   segSegCross,
@@ -58,6 +60,18 @@ export default function Scene3D() {
     if (!xV || !A || !B || !C || !D) return null;
     return { M: linePoint(A, B, xV.t), N: linePoint(C, D, xV.u) };
   }, [xV, A, B, C, D]);
+
+  /* ch2 线面交点 K 与被挡空间段 */
+  const lp =
+    kind === 'linePlane' && A && B && C && D && E ? lineVsPlane(D, E, A, B, C) : null;
+  const hidV =
+    kind === 'linePlane' && A && B && C && D && E
+      ? hiddenInterval('V', D, E, A, B, C)
+      : null;
+  const hidH =
+    kind === 'linePlane' && A && B && C && D && E
+      ? hiddenInterval('H', D, E, A, B, C)
+      : null;
 
   const baseIds: { id: string; color: string }[] = [
     { id: 'V', color: '#2563eb' },
@@ -186,7 +200,36 @@ export default function Scene3D() {
               <meshBasicMaterial color={OBJ} transparent opacity={0.16} side={THREE.DoubleSide} depthWrite={false} />
             </mesh>
             <Line points={[v3(A), v3(B), v3(C), v3(A)]} color={OBJ} lineWidth={2.6} />
-            <Line points={[v3(D), v3(E)]} color="#b91c1c" lineWidth={3} />
+            {(() => {
+              const iv = step >= 3 && layers.hidden ? (hidV ?? hidH) : null;
+              if (!iv) return <Line points={[v3(D), v3(E)]} color="#b91c1c" lineWidth={3} />;
+              const pA = linePoint(D, E, iv[0]);
+              const pB = linePoint(D, E, iv[1]);
+              return (
+                <group>
+                  <Line points={[v3(D), v3(pA)]} color="#b91c1c" lineWidth={3} />
+                  <Line points={[v3(pA), v3(pB)]} color="#7f1d1d" lineWidth={3} dashed dashSize={0.26} gapSize={0.18} />
+                  <Line points={[v3(pB), v3(E)]} color="#b91c1c" lineWidth={3} />
+                </group>
+              );
+            })()}
+            {lp && lp.insideTri && step >= 2 && (
+              <>
+                <Ball pos={lp.K} r={0.14} color={DERIVED} />
+                {layers.labels && <Tag pos={lp.K} text="K" color={DERIVED} />}
+                {projs.map(({ id }) => {
+                  const pp = sys.renderPos(id, lp.K);
+                  return (
+                    <group key={id}>
+                      <Ball pos={pp} r={0.09} color={DERIVED} />
+                      {layers.labels && (
+                        <Tag pos={pp} text={projLabel('k', id)} color={DERIVED} dy={0.3} />
+                      )}
+                    </group>
+                  );
+                })}
+              </>
+            )}
           </>
         )}
 
