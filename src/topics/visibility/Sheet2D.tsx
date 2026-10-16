@@ -317,7 +317,7 @@ export default function Sheet2D() {
     color: string,
     dx = 0.6,
     dy = -0.7,
-    anchor?: 'end',
+    anchor?: 'start' | 'middle' | 'end',
   ) => {
     const [x, y] = P(at);
     return (
@@ -327,7 +327,7 @@ export default function Sheet2D() {
         y={y + dy}
         fill={color}
         fontSize={0.5}
-        textAnchor={anchor}
+        textAnchor={anchor ?? 'start'}
       >
         {text}
       </text>
@@ -415,7 +415,8 @@ export default function Sheet2D() {
         out.push(
           <g key="true">
             <circle {...{ cx: P(xV.pt)[0], cy: P(xV.pt)[1] }} r={0.17} fill={C_DERIVED} />
-            {layers.labels && conclusion(xV.pt, '真相交于 P:两交点同柱', '#0f766e')}
+            {layers.labels &&
+              conclusion(xV.pt, '真相交于 P:两交点同柱', '#0f766e', -1.2, -0.7, 'middle')}
           </g>,
         );
       }
@@ -474,8 +475,9 @@ export default function Sheet2D() {
               candV.X,
               candV.mVis ? '∵ y_M > y_N,(a′b′) 在此被挡' : '∵ y_N > y_M,(c′d′) 在此被挡',
               C_BAD,
-              0.5,
+              -0.6,
               -0.9,
+              'middle',
             ),
           );
         }
@@ -519,8 +521,9 @@ export default function Sheet2D() {
               candH.X,
               candH.mVis ? '∵ z_M > z_N,(ab) 在此被挡' : '∵ z_N > z_M,(cd) 在此被挡',
               C_BAD,
-              0.5,
+              -0.6,
               0.9,
+              'middle',
             ),
           );
         }
