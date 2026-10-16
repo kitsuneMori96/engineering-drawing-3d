@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNav } from './nav';
 import Home from './topics/Home';
 import HuanmianApp from './topics/huanmian/App';
+import VisibilityApp from './topics/visibility/App';
 
 /**
  * 主题壳:同一时刻只挂载一个主题(模块级单例如换面法 useSystem 依赖这一点)。
@@ -21,6 +22,6 @@ export default function App() {
   }, [topic]);
 
   if (topic === 'huanmian') return <HuanmianApp />;
-  // visibility 等后续主题在此挂载,未接入前回落首页
+  if (topic === 'visibility') return <VisibilityApp />;
   return <Home />;
 }
