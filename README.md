@@ -3,7 +3,7 @@
 正投影体系的交互式教学网站,当前收录两个主题:**换面法**与**判别可见性**。
 把"在头脑中旋转投影面"的抽象过程变成可拖动、可展开、2D/3D 实时对照的动态演示。
 
-在线地址:<https://kitsunemori96.github.io/huanmian3d/>
+在线地址:<https://kitsunemori96.github.io/engineering-drawing-3d/>
 
 ## 为什么做这个
 
