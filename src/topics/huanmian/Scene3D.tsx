@@ -12,7 +12,6 @@ import {
   Ball,
   PanHandler,
   PlaneQuad,
-  ProjLink,
   Tag,
   localToWorld,
   v3,
@@ -159,7 +158,10 @@ export default function Scene3D() {
       {showAxis && v1Def && <AxisLine sys={sys} def={v1Def} pts={planePts} />}
       {showAxis2 && h2Def && <AxisLine sys={sys} def={h2Def} pts={planePts} />}
 
-      {layers.planes && planes.map((def) => <PlaneQuad key={def.id} def={def} sys={sys} pts={planePts} opacity={0.4} />)}
+      {layers.planes &&
+        planes.map((def, i) => (
+          <PlaneQuad key={def.id} def={def} sys={sys} pts={planePts} opacity={0.4} renderOrder={i} />
+        ))}
 
       {/* 几何元素 */}
       <Line points={[v3(A), v3(B)]} color={OBJ} lineWidth={3} />
@@ -227,13 +229,6 @@ export default function Scene3D() {
             )}
           </group>
         );
-      })}
-
-      {/* 同名投影跨面虚线:a′—a、a′—a₁…(覆盖层,不被实体面切断) */}
-      {(['A', 'B', 'C'] as const).map((key) => {
-        const P = points[key];
-        const pts = projs.map(({ id }) => sys.renderPos(id, P));
-        return <ProjLink key={key} pts={pts} />;
       })}
 
       {/* 等距规律:features.measuresV1 —— a′→OX 与 a₁→OX₁ 同值 */}

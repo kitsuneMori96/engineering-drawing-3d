@@ -9,7 +9,6 @@ import {
   Ball,
   PanHandler,
   PlaneQuad,
-  ProjLink,
   Tag,
   v3,
 } from '../../lib/three-atoms';
@@ -48,6 +47,17 @@ export default function Scene3D() {
     () => [A, B, C, D, E].filter((p): p is Vec3 => p !== null),
     [A, B, C, D, E],
   );
+
+  // 对象几何的"段":各段在每个投影面上的投影即面内投影连线
+  const objSegs = useMemo(() => {
+    const keys: [PtKey, PtKey][] =
+      kind === 'linePlane'
+        ? [['A', 'B'], ['B', 'C'], ['C', 'A'], ['D', 'E']]
+        : [['A', 'B'], ['C', 'D']];
+    return keys
+      .map(([k1, k2]) => [points[k1], points[k2]] as [Vec3, Vec3])
+      .filter(([p1, p2]) => p1 && p2);
+  }, [kind, points]);
 
   /* ch0 重影(3D 中高亮"视线段") */
   const abV = A && B && coincidentPair(A, B, 'V');
@@ -318,16 +328,12 @@ export default function Scene3D() {
           );
         })}
 
-        {/* 各投影面上的投影 + 同名投影跨面虚线(含对象点→投影的投射段) */}
+        {/* 各投影面上的投影 + 面内投影连线(对象各段在该面上的投影) */}
         {(['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => {
           const p = points[k];
           if (!p) return null;
-          const planePts = projs.map(({ id }) => sys.renderPos(id, p));
           return (
             <group key={k}>
-              <ProjLink
-                pts={layers.projectors ? [p, ...planePts] : planePts}
-              />
               {projs.map(({ id, color }) => {
                 const pp = sys.renderPos(id, p);
                 return (
@@ -342,6 +348,21 @@ export default function Scene3D() {
             </group>
           );
         })}
+        {projs.map(({ id, color }) => (
+          <group key={id}>
+            {objSegs.map(([p1, p2], i) => (
+              <Line
+                key={i}
+                points={[v3(sys.renderPos(id, p1)), v3(sys.renderPos(id, p2))]}
+                color={color}
+                dashed
+                dashSize={0.3}
+                gapSize={0.2}
+                lineWidth={2}
+              />
+            ))}
+          </group>
+        ))}
       </Canvas>
       <div className={`mode-badge ${panMode ? 'pan' : ''}`}>
         {panMode ? '平移中 · 移动鼠标平移画面(右键单击退出)' : '旋转模式 · 右键单击开始平移'}

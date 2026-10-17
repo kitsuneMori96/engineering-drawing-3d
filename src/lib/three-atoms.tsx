@@ -99,6 +99,9 @@ export function PlaneQuad({
   ];
   const center = corner(uC, vC);
   const back = new THREE.Color(def.color).multiplyScalar(0.82).getStyle();
+  // 两面摊平共面时(如 H 展开 100% 与 V 重合),polygonOffset 完全相同会 z-fighting 闪烁;
+  // 按 renderOrder 错开偏置量,让固定绘制顺序的面在共面处深度也严格有序
+  const off = -1 - renderOrder * 0.5;
   return (
     <group position={v3(center)} quaternion={q}>
       <mesh renderOrder={renderOrder}>
@@ -110,8 +113,8 @@ export function PlaneQuad({
           side={THREE.FrontSide}
           depthWrite
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={off}
+          polygonOffsetUnits={off}
         />
       </mesh>
       <mesh renderOrder={renderOrder}>
@@ -123,48 +126,11 @@ export function PlaneQuad({
           side={THREE.BackSide}
           depthWrite
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={off}
+          polygonOffsetUnits={off}
         />
       </mesh>
       <Line points={corners} color={def.color} lineWidth={1.1} transparent opacity={0.55} />
-    </group>
-  );
-}
-
-/**
- * 同名投影跨面虚线:点 P 在各投影面上的落点两两相连(可含"对象点→投影"段)。
- * 覆盖层渲染(depthTest=false):投影连线是读图辅助线,不被实体面切断。
- */
-export function ProjLink({
-  pts,
-  color = '#475569',
-  lineWidth = 1.6,
-}: {
-  pts: Vec3[];
-  color?: string;
-  lineWidth?: number;
-}) {
-  const segs: [Vec3, Vec3][] = [];
-  for (let i = 0; i < pts.length; i++)
-    for (let j = i + 1; j < pts.length; j++) segs.push([pts[i], pts[j]]);
-  return (
-    <group>
-      {segs.map(([a, b], i) => (
-        <Line
-          key={i}
-          points={[v3(a), v3(b)]}
-          color={color}
-          lineWidth={lineWidth}
-          dashed
-          dashSize={0.28}
-          gapSize={0.2}
-          transparent
-          opacity={0.9}
-          depthTest={false}
-          renderOrder={9}
-        />
-      ))}
     </group>
   );
 }
