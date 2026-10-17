@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Html, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Vec3 } from '../../lib/math';
+import { cross3, norm3 } from '../../lib/math';
 import { projLabel } from '../../lib/engine';
 import {
   Ball,
@@ -93,6 +94,11 @@ export default function Scene3D() {
     return g;
   }, [A, B, C]);
 
+  const triNormal = useMemo(
+    () => (A && B && C ? norm3(cross3([B[0] - A[0], B[1] - A[1], B[2] - A[2]], [C[0] - A[0], C[1] - A[1], C[2] - A[2]])) : null),
+    [A, B, C],
+  );
+
   const isInvisTag = (k: PtKey, id: string): boolean => {
     if (!showParen) return false;
     if (id === 'V' && ((k === 'A' && abV && abVisV !== A) || (k === 'B' && abV && abVisV !== B)))
@@ -142,9 +148,18 @@ export default function Scene3D() {
         <Html position={[0, 11.6, 0]} center><span className="axis3d">Y</span></Html>
         <Html position={[0, 0, 11.6]} center><span className="axis3d">Z</span></Html>
 
-        {projs.map(({ id, color }) => {
+        {projs.map(({ id, color }, i) => {
           const def = sys.defs.get(id)!;
-          return <PlaneQuad key={id} def={{ ...def, color }} sys={sys} pts={live} />;
+          return (
+            <PlaneQuad
+              key={id}
+              def={{ ...def, color }}
+              sys={sys}
+              pts={live}
+              opacity={id === 'V1' ? 0.5 : 0.55}
+              renderOrder={i}
+            />
+          );
         })}
 
         {/* 对象几何 */}
@@ -197,7 +212,28 @@ export default function Scene3D() {
         {kind === 'linePlane' && A && B && C && D && E && (
           <>
             <mesh geometry={triGeo}>
-              <meshBasicMaterial color={OBJ} transparent opacity={0.16} side={THREE.DoubleSide} depthWrite={false} />
+              <meshBasicMaterial
+                color={OBJ}
+                transparent
+                opacity={0.62}
+                side={THREE.FrontSide}
+                depthWrite
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
+            </mesh>
+            <mesh geometry={triGeo}>
+              <meshBasicMaterial
+                color="#991b1b"
+                transparent
+                opacity={0.62}
+                side={THREE.BackSide}
+                depthWrite
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
             </mesh>
             <Line points={[v3(A), v3(B), v3(C), v3(A)]} color={OBJ} lineWidth={2.6} />
             {(() => {
@@ -213,23 +249,57 @@ export default function Scene3D() {
                 </group>
               );
             })()}
-            {lp && lp.insideTri && step >= 2 && (
-              <>
-                <Ball pos={lp.K} r={0.14} color={DERIVED} />
-                {layers.labels && <Tag pos={lp.K} text="K" color={DERIVED} />}
-                {projs.map(({ id }) => {
-                  const pp = sys.renderPos(id, lp.K);
-                  return (
-                    <group key={id}>
-                      <Ball pos={pp} r={0.09} color={DERIVED} />
-                      {layers.labels && (
-                        <Tag pos={pp} text={projLabel('k', id)} color={DERIVED} dy={0.3} />
-                      )}
-                    </group>
-                  );
-                })}
-              </>
+            {/* K 线面交点:题目核心元素,自第一步常显(覆盖层,不被实体面遮挡) */}
+            {lp && (
+              <group position={v3(lp.K)} renderOrder={10}>
+                <mesh renderOrder={10}>
+                  <sphereGeometry args={[lp.insideTri ? 0.17 : 0.12, 20, 20]} />
+                  <meshBasicMaterial
+                    color={lp.insideTri ? '#f59e0b' : '#94a3b8'}
+                    transparent
+                    depthTest={false}
+                  />
+                </mesh>
+                {lp.insideTri && triNormal && (
+                  <mesh
+                    renderOrder={10}
+                    quaternion={new THREE.Quaternion().setFromUnitVectors(
+                      new THREE.Vector3(0, 0, 1),
+                      new THREE.Vector3(...triNormal),
+                    )}
+                  >
+                    <ringGeometry args={[0.26, 0.32, 40]} />
+                    <meshBasicMaterial
+                      color="#ffffff"
+                      transparent
+                      opacity={0.9}
+                      side={THREE.DoubleSide}
+                      depthWrite={false}
+                      depthTest={false}
+                    />
+                  </mesh>
+                )}
+              </group>
             )}
+            {lp && layers.labels && (
+              <Tag
+                pos={lp.K}
+                text={lp.insideTri ? 'K' : 'K(面外)'}
+                color={lp.insideTri ? '#f59e0b' : '#64748b'}
+              />
+            )}
+            {lp && lp.insideTri && step >= 2 &&
+              projs.map(({ id }) => {
+                const pp = sys.renderPos(id, lp.K);
+                return (
+                  <group key={id}>
+                    <Ball pos={pp} r={0.09} color={DERIVED} overlay />
+                    {layers.labels && (
+                      <Tag pos={pp} text={projLabel('k', id)} color={DERIVED} dy={0.3} />
+                    )}
+                  </group>
+                );
+              })}
           </>
         )}
 
@@ -241,6 +311,7 @@ export default function Scene3D() {
           return (
             <group key={k}>
               {kind !== 'linePlane' && <Ball pos={p} r={0.15} color={OBJ} />}
+              {kind === 'linePlane' && <Ball pos={p} r={0.15} color={OBJ} overlay />}
               {layers.labels && <Tag pos={p} text={k} color={OBJ} />}
             </group>
           );
@@ -258,7 +329,7 @@ export default function Scene3D() {
                   {layers.projectors && (
                     <Line points={[v3(p), v3(pp)]} color="#94a3b8" dashed dashSize={0.34} gapSize={0.2} lineWidth={1.1} />
                   )}
-                  <Ball pos={pp} r={0.1} color={color} />
+                  <Ball pos={pp} r={0.1} color={color} overlay />
                   {tagFor(k, id) && (
                     <Tag pos={pp} text={tagFor(k, id)!} color={color} dy={isInvisTag(k, id) ? 0.95 : 0.32} />
                   )}

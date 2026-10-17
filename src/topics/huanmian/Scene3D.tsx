@@ -202,9 +202,9 @@ export default function Scene3D() {
                 )}
               </>
             )}
-            <Ball pos={pa} r={0.1} color={color} />
-            <Ball pos={pb} r={0.1} color={color} />
-            {isPlane && <Ball pos={pc} r={0.1} color={color} />}
+            <Ball pos={pa} r={0.1} color={color} overlay />
+            <Ball pos={pb} r={0.1} color={color} overlay />
+            {isPlane && <Ball pos={pc} r={0.1} color={color} overlay />}
             {/* 投影连线:线段/三角形在各面上的投影(镜像 Sheet2D 作图线) */}
             {layers.construct && (
               <>

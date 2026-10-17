@@ -12,11 +12,21 @@ export const v3 = (a: Vec3): [number, number, number] => [a[0], a[1], a[2]];
 export const localToWorld = (f: Frame3, q: Vec2): Vec3 =>
   add3(f.o, add3(mul3(f.u, q[0]), mul3(f.v, q[1])));
 
-export function Ball({ pos, r, color }: { pos: Vec3; r: number; color: string }) {
+export function Ball({
+  pos,
+  r,
+  color,
+  overlay = false,
+}: {
+  pos: Vec3;
+  r: number;
+  color: string;
+  overlay?: boolean;
+}) {
   return (
-    <mesh position={v3(pos)}>
+    <mesh position={v3(pos)} renderOrder={overlay ? 10 : 0}>
       <sphereGeometry args={[r, 20, 20]} />
-      <meshBasicMaterial color={color} />
+      <meshBasicMaterial color={color} transparent={overlay} depthTest={!overlay} />
     </mesh>
   );
 }
@@ -49,12 +59,14 @@ export function PlaneQuad({
   def,
   sys,
   pts,
-  opacity = 0.08,
+  opacity = 0.55,
+  renderOrder = 0,
 }: {
   def: PlaneDef;
   sys: System;
   pts: Vec3[];
   opacity?: number;
+  renderOrder?: number;
 }) {
   const f = sys.renderFrame(def.id);
   const q = new THREE.Quaternion().setFromRotationMatrix(
@@ -86,16 +98,33 @@ export function PlaneQuad({
     corner(uC - uH, vC - vH),
   ];
   const center = corner(uC, vC);
+  const back = new THREE.Color(def.color).multiplyScalar(0.82).getStyle();
   return (
     <group position={v3(center)} quaternion={q}>
-      <mesh>
+      <mesh renderOrder={renderOrder}>
         <planeGeometry args={[uH * 2, vH * 2]} />
         <meshBasicMaterial
           color={def.color}
           transparent
           opacity={opacity}
-          side={THREE.DoubleSide}
-          depthWrite={false}
+          side={THREE.FrontSide}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
+      </mesh>
+      <mesh renderOrder={renderOrder}>
+        <planeGeometry args={[uH * 2, vH * 2]} />
+        <meshBasicMaterial
+          color={back}
+          transparent
+          opacity={opacity}
+          side={THREE.BackSide}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
         />
       </mesh>
       <Line points={corners} color={def.color} lineWidth={1.1} transparent opacity={0.55} />
