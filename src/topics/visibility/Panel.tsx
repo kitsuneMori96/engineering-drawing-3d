@@ -3,7 +3,7 @@ import { fmt1 } from '../../lib/math';
 import { planeAxisAngle } from '../../lib/engine';
 import { visFlowOf } from './chapters';
 import { DEFAULT_AXIS_V1_POS, useVisStore } from './store';
-import { isTrueIntersection, lineVsPlane } from './vis';
+import { isTrueIntersection, lineVsPlane, planePlane } from './vis';
 
 const LAYERS: { key: 'projectors' | 'labels' | 'construct' | 'measures' | 'hidden'; label: string }[] = [
   { key: 'projectors', label: '投影连线' },
@@ -28,14 +28,19 @@ export default function Panel() {
   const setAxisAngle = useVisStore((s) => s.setAxisAngle);
   const resetGeometry = useVisStore((s) => s.resetGeometry);
   const presetTrueIntersection = useVisStore((s) => s.presetTrueIntersection);
+  const presetParallelPlanes = useVisStore((s) => s.presetParallelPlanes);
 
   const flow = visFlowOf(chapter);
   const kind = flow.features.kind;
-  const { A, B, C, D, E } = points;
+  const { A, B, C, D, E, F } = points;
   const trueNow =
     kind === 'crossing' && A && B && C && D ? isTrueIntersection(A, B, C, D).yes : false;
   const lpNow =
     kind === 'linePlane' && A && B && C && D && E ? lineVsPlane(D, E, A, B, C) : null;
+  const ppNow =
+    kind === 'planePlane' && A && B && C && D && E && F
+      ? planePlane(A, B, C, D, E, F)
+      : null;
   // 独立侧栏列,窄屏默认收起
   const [open, setOpen] = useState(() => window.innerWidth >= 1200);
 
@@ -116,6 +121,28 @@ export default function Panel() {
                 {!lpNow ? 'DE ∥ 平面(无交点)' : lpNow.insideTri ? 'K 在三角形内(有挡段)' : 'K 在三角形外(全可见)'}
               </span>
             </div>
+          </>
+        )}
+
+        {kind === 'planePlane' && (
+          <>
+            <h3>判别状态</h3>
+            <div className="axis-row">
+              <span>两平面位置关系</span>
+              <span
+                className="num"
+                style={{ color: ppNow?.parallel ? '#dc2626' : ppNow?.hit ? '#0f766e' : '#b45309' }}
+              >
+                {ppNow?.parallel
+                  ? '平行(无交线)'
+                  : ppNow?.hit
+                    ? `交线 KL(实长 ${fmt1(ppNow.hit.length)})`
+                    : '交线不在两图形重叠区'}
+              </span>
+            </div>
+            <button className="btn" onClick={presetParallelPlanes}>
+              构造平行平面
+            </button>
           </>
         )}
 

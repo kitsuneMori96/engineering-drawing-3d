@@ -13,7 +13,7 @@ import {
   v3,
 } from '../../lib/three-atoms';
 import { useVisSystem } from './useVisSystem';
-import { visFlowOf, type PtKey } from './chapters';
+import { ALL_PTS, visFlowOf, type PtKey } from './chapters';
 import { useVisStore } from './store';
 import {
   coincidentPair,
@@ -21,6 +21,7 @@ import {
   linePoint,
   lineVsPlane,
   parenthesized,
+  planePlane,
   projV,
   segSegCross,
   visibleOfCoincident,
@@ -41,11 +42,11 @@ export default function Scene3D() {
 
   const flow = visFlowOf(chapter);
   const kind = flow.features.kind;
-  const { A, B, C, D, E } = points;
+  const { A, B, C, D, E, F } = points;
 
   const live: Vec3[] = useMemo(
-    () => [A, B, C, D, E].filter((p): p is Vec3 => p !== null),
-    [A, B, C, D, E],
+    () => ALL_PTS.map((k) => points[k]).filter((p): p is Vec3 => p !== null),
+    [points],
   );
 
   // 对象几何的"段":各段在每个投影面上的投影即面内投影连线
@@ -53,7 +54,9 @@ export default function Scene3D() {
     const keys: [PtKey, PtKey][] =
       kind === 'linePlane'
         ? [['A', 'B'], ['B', 'C'], ['C', 'A'], ['D', 'E']]
-        : [['A', 'B'], ['C', 'D']];
+        : kind === 'planePlane'
+          ? [['A', 'B'], ['B', 'C'], ['C', 'A'], ['D', 'E'], ['E', 'F'], ['F', 'D']]
+          : [['A', 'B'], ['C', 'D']];
     return keys
       .map(([k1, k2]) => [points[k1], points[k2]] as [Vec3, Vec3])
       .filter(([p1, p2]) => p1 && p2);
@@ -85,6 +88,13 @@ export default function Scene3D() {
       ? hiddenInterval('H', D, E, A, B, C)
       : null;
 
+  /* ch3 两面交线 */
+  const pp =
+    kind === 'planePlane' && A && B && C && D && E && F
+      ? planePlane(A, B, C, D, E, F)
+      : null;
+  const ppHit = pp?.hit ?? null;
+
   const baseIds: { id: string; color: string }[] = [
     { id: 'V', color: '#1d4ed8' },
     { id: 'H', color: '#047857' },
@@ -104,6 +114,48 @@ export default function Scene3D() {
     }
     return g;
   }, [A, B, C]);
+
+  const triGeo2 = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    if (D && E && F) {
+      g.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([...v3(D), ...v3(E), ...v3(F)], 3),
+      );
+      g.computeVertexNormals();
+    }
+    return g;
+  }, [D, E, F]);
+
+  /** ch3:实体三角双 mesh(前/背面),color 按平面区分 */
+  const solidTri = (geo: THREE.BufferGeometry, front: string, back: string) => (
+    <>
+      <mesh geometry={geo}>
+        <meshBasicMaterial
+          color={front}
+          transparent
+          opacity={0.5}
+          side={THREE.FrontSide}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
+      </mesh>
+      <mesh geometry={geo}>
+        <meshBasicMaterial
+          color={back}
+          transparent
+          opacity={0.5}
+          side={THREE.BackSide}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
+      </mesh>
+    </>
+  );
 
   const triNormal = useMemo(
     () => (A && B && C ? norm3(cross3([B[0] - A[0], B[1] - A[1], B[2] - A[2]], [C[0] - A[0], C[1] - A[1], C[2] - A[2]])) : null),
@@ -314,22 +366,78 @@ export default function Scene3D() {
           </>
         )}
 
+        {kind === 'planePlane' && A && B && C && D && E && F && (
+          <>
+            {solidTri(triGeo, '#ef4444', '#991b1b')}
+            {solidTri(triGeo2, '#4f46e5', '#312e81')}
+            <Line points={[v3(A), v3(B), v3(C), v3(A)]} color="#dc2626" lineWidth={2.6} />
+            <Line points={[v3(D), v3(E), v3(F), v3(D)]} color="#4338ca" lineWidth={2.6} />
+            {ppHit && (
+              <group>
+                <Line
+                  points={[v3(ppHit.K), v3(ppHit.L)]}
+                  color="#f59e0b"
+                  lineWidth={4}
+                  transparent
+                  depthTest={false}
+                  renderOrder={9}
+                />
+                <Ball pos={ppHit.K} r={0.15} color="#f59e0b" overlay />
+                <Ball pos={ppHit.L} r={0.15} color="#f59e0b" overlay />
+                {layers.labels && (
+                  <>
+                    <Tag pos={ppHit.K} text="K" color="#b45309" />
+                    <Tag pos={ppHit.L} text="L" color="#b45309" />
+                  </>
+                )}
+              </group>
+            )}
+            {ppHit &&
+              step >= 4 &&
+              projs.map(({ id }) =>
+                (['K', 'L'] as const).map((which) => {
+                  const p = which === 'K' ? ppHit.K : ppHit.L;
+                  const pp2 = sys.renderPos(id, p);
+                  return (
+                    <group key={`${id}${which}`}>
+                      <Ball pos={pp2} r={0.09} color={DERIVED} overlay />
+                      {layers.labels && (
+                        <Tag pos={pp2} text={projLabel(which.toLowerCase(), id)} color={DERIVED} dy={0.3} />
+                      )}
+                    </group>
+                  );
+                }))}
+            {pp?.parallel && (
+              <Tag
+                pos={[
+                  (A[0] + B[0] + C[0] + D[0] + E[0] + F[0]) / 6,
+                  (A[1] + B[1] + C[1] + D[1] + E[1] + F[1]) / 6 + 1,
+                  (A[2] + B[2] + C[2] + D[2] + E[2] + F[2]) / 6,
+                ]}
+                text="两平面平行"
+                color="#64748b"
+              />
+            )}
+          </>
+        )}
+
         {/* 存在点的定位小球与标签 */}
-        {(['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => {
+        {ALL_PTS.map((k) => {
           const p = points[k];
           if (!p) return null;
           if (kind === 'coincident') return null; // 已由上面成对绘制
+          const overlay = kind === 'linePlane' || kind === 'planePlane';
+          const col = kind === 'planePlane' && (k === 'D' || k === 'E' || k === 'F') ? '#4f46e5' : OBJ;
           return (
             <group key={k}>
-              {kind !== 'linePlane' && <Ball pos={p} r={0.15} color={OBJ} />}
-              {kind === 'linePlane' && <Ball pos={p} r={0.15} color={OBJ} overlay />}
-              {layers.labels && <Tag pos={p} text={k} color={OBJ} />}
+              <Ball pos={p} r={0.15} color={col} overlay={overlay} />
+              {layers.labels && <Tag pos={p} text={k} color={col} />}
             </group>
           );
         })}
 
         {/* 各投影面上的投影 + 面内投影连线(对象各段在该面上的投影) */}
-        {(['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => {
+        {ALL_PTS.map((k) => {
           const p = points[k];
           if (!p) return null;
           return (

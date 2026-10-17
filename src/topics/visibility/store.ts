@@ -3,6 +3,7 @@ import type { Vec2, Vec3 } from '../../lib/math';
 import { norm2 } from '../../lib/math';
 import { planeAxisAngle, type PlaneDef } from '../../lib/engine';
 import {
+  ALL_PTS,
   DEFAULT_LAYERS,
   VIS_FLOWS,
   visFlowOf,
@@ -18,7 +19,7 @@ function clamp01(n: number): number {
 /** ch2 默认新轴:画在 H 视图下方,方向由 planeAxisAngle 保证 V₁ ⊥ 平面 */
 export const DEFAULT_AXIS_V1_POS = [0, 9] as Vec2;
 
-const PT_KEYS: PtKey[] = ['A', 'B', 'C', 'D', 'E'];
+const PT_KEYS: PtKey[] = ALL_PTS;
 
 function presetPoints(chapter: number): Record<PtKey, Vec3 | null> {
   const preset = visFlowOf(chapter).features.preset;
@@ -67,6 +68,8 @@ interface State {
   resetGeometry: () => void;
   /** ch1 面板按钮:把 CD 摆成与 AB 真相交(交于 AB 中点) */
   presetTrueIntersection: () => void;
+  /** ch3 面板按钮:把 △DEF 摆成与 △ABC 平行(边方向取 ABC 的两边,0.8 倍) */
+  presetParallelPlanes: () => void;
 }
 
 const initPoints = presetPoints(0);
@@ -118,6 +121,15 @@ export const useVisStore = create<State>((set, get) => ({
       const P: Vec3 = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2];
       const D: Vec3 = [2 * P[0] - C[0], 2 * P[1] - C[1], 2 * P[2] - C[2]];
       return { points: { ...s.points, D } };
+    }),
+  presetParallelPlanes: () =>
+    set((s) => {
+      const { A, B, C, D } = s.points;
+      if (!A || !B || !C || !D) return {};
+      const K = 0.8;
+      const E: Vec3 = [D[0] + K * (B[0] - A[0]), D[1] + K * (B[1] - A[1]), D[2] + K * (B[2] - A[2])];
+      const F: Vec3 = [D[0] + K * (C[0] - A[0]), D[1] + K * (C[1] - A[1]), D[2] + K * (C[2] - A[2])];
+      return { points: { ...s.points, E, F } };
     }),
 }));
 

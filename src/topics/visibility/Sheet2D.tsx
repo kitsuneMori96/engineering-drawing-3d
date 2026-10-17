@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Vec2, Vec3 } from '../../lib/math';
-import { add2, fmt1, mul2, norm2 } from '../../lib/math';
+import { add2, fmt1, mul2, norm2, sub2 } from '../../lib/math';
 import { projLabel } from '../../lib/engine';
 import { useVisSystem } from './useVisSystem';
-import { visFlowOf, type PtKey } from './chapters';
+import { visFlowOf, ALL_PTS, type PtKey } from './chapters';
 import { useVisStore } from './store';
 import {
+  auxPlaneCord,
   coincidentPair,
   compareValue,
   crossStub,
@@ -14,6 +15,7 @@ import {
   linePoint,
   lineVsPlane,
   parenthesized,
+  planePlane,
   projH,
   projV,
   segSegCross,
@@ -60,35 +62,25 @@ export default function Sheet2D() {
   const flow = visFlowOf(chapter);
   const kind = flow.features.kind;
   const draggable = flow.features.draggable;
-  const { A, B, C, D, E } = points;
+  const { A, B, C, D, E, F } = points;
 
   /* ---- 各点两面投影的纸面位置(跟随展开补间) ---- */
   const sheet = (id: string, k: PtKey): Vec2 | null => {
     const p = points[k];
     return p ? sys.sheetPos(id, p) : null;
   };
-  const sV = useMemo(
-    () => ({
-      A: sheet('V', 'A'),
-      B: sheet('V', 'B'),
-      C: sheet('V', 'C'),
-      D: sheet('V', 'D'),
-      E: sheet('V', 'E'),
-    }),
+  const sV = useMemo(() => {
+    const o = {} as Record<PtKey, Vec2 | null>;
+    for (const k of ALL_PTS) o[k] = sheet('V', k);
+    return o;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sys, points],
-  );
-  const sH = useMemo(
-    () => ({
-      A: sheet('H', 'A'),
-      B: sheet('H', 'B'),
-      C: sheet('H', 'C'),
-      D: sheet('H', 'D'),
-      E: sheet('H', 'E'),
-    }),
+  }, [sys, points]);
+  const sH = useMemo(() => {
+    const o = {} as Record<PtKey, Vec2 | null>;
+    for (const k of ALL_PTS) o[k] = sheet('H', k);
+    return o;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sys, points],
-  );
+  }, [sys, points]);
 
   /* ---- ch0 重影判别(实时由坐标得出) ---- */
   const abV = A && B && coincidentPair(A, B, 'V');
@@ -128,13 +120,49 @@ export default function Sheet2D() {
     kind === 'linePlane' && A && B && C && D && E
       ? hiddenInterval('H', D, E, A, B, C)
       : null;
+
+  /* ---- ch3 两平面相交分析 ---- */
+  const pp =
+    kind === 'planePlane' && A && B && C && D && E && F
+      ? planePlane(A, B, C, D, E, F)
+      : null;
+  const ppHit = pp?.hit ?? null;
+  const cords = useMemo(() => {
+    if (kind !== 'planePlane' || !A || !B || !C || !D || !E || !F)
+      return { DE: null, DF: null };
+    return {
+      DE: auxPlaneCord(D, E, [A, B, C]),
+      DF: auxPlaneCord(D, F, [A, B, C]),
+    };
+  }, [kind, A, B, C, D, E, F]);
+  /** 每条对象边在各视图的被挡区间(键=两端点名) */
+  const ppHid = useMemo(() => {
+    const out: Record<Face, Partial<Record<string, [number, number]>>> = { V: {}, H: {} };
+    if (kind !== 'planePlane' || !A || !B || !C || !D || !E || !F) return out;
+    const pts = { A, B, C, D, E, F } as Record<PtKey, Vec3>;
+    const edges: [PtKey, PtKey, PtKey[]][] = [
+      ['D', 'E', ['A', 'B', 'C']],
+      ['E', 'F', ['A', 'B', 'C']],
+      ['F', 'D', ['A', 'B', 'C']],
+      ['A', 'B', ['D', 'E', 'F']],
+      ['B', 'C', ['D', 'E', 'F']],
+      ['C', 'A', ['D', 'E', 'F']],
+    ];
+    for (const face of ['V', 'H'] as Face[])
+      for (const [k1, k2, tri] of edges) {
+        const iv = hiddenInterval(face, pts[k1], pts[k2], pts[tri[0]], pts[tri[1]], pts[tri[2]]);
+        if (iv) out[face][`${k1}${k2}`] = iv;
+      }
+    return out;
+  }, [kind, A, B, C, D, E, F]);
   const s1 = useMemo(() => {
     if (!showV1) return null;
-    const g = (k: PtKey): Vec2 | null => {
+    const o = {} as Record<PtKey, Vec2 | null>;
+    for (const k of ALL_PTS) {
       const p = points[k];
-      return p ? sys.sheetPos('V1', p) : null;
-    };
-    return { A: g('A'), B: g('B'), C: g('C'), D: g('D'), E: g('E') };
+      o[k] = p ? sys.sheetPos('V1', p) : null;
+    }
+    return o;
   }, [showV1, sys, points]);
   /** V₁ 面上 A/B/C 是否积聚共线(轴已对准平面法向) */
   const collapsed = useMemo(() => {
@@ -154,13 +182,13 @@ export default function Sheet2D() {
   /* ---- 视口自适应 ---- */
   const viewBox = useMemo(() => {
     const all: Vec2[] = [];
-    for (const k of ['A', 'B', 'C', 'D', 'E'] as PtKey[]) {
+    for (const k of ALL_PTS) {
       if (sV[k]) all.push(sV[k]!);
       if (sH[k]) all.push(sH[k]!);
     }
     if (showV1) {
       all.push(sys.sheetFrame('V1').o);
-      for (const k of ['A', 'B', 'C', 'D', 'E'] as PtKey[]) if (s1?.[k]) all.push(s1[k]!);
+      for (const k of ALL_PTS) if (s1?.[k]) all.push(s1[k]!);
     }
     const pts = candV ? [candV.X] : [];
     const candHpts = candH && step >= 4 ? [candH.X] : [];
@@ -410,6 +438,34 @@ export default function Sheet2D() {
     );
   };
 
+  /** ch3:对象边在某视图按被挡区间拆成 实-虚-实(ch2 的 deLine 泛化) */
+  const edgeSplit = (
+    P0: Vec3,
+    P1: Vec3,
+    face: Face,
+    iv: [number, number] | undefined,
+    show: boolean,
+    stroke: string,
+  ) => {
+    const q = (t: number): Vec2 => sys.sheetPos(face, linePoint(P0, P1, t));
+    const seg = (t0: number, t1: number, dash: boolean) => (
+      <line
+        {...lineP(q(t0), q(t1))}
+        stroke={stroke}
+        strokeWidth={0.085}
+        strokeDasharray={dash && show ? '0.26 0.2' : undefined}
+      />
+    );
+    if (!iv || !show) return seg(0, 1, false);
+    return (
+      <g>
+        {iv[0] > 1e-6 && seg(0, iv[0], false)}
+        {seg(iv[0], iv[1], true)}
+        {iv[1] < 1 - 1e-6 && seg(iv[1], 1, false)}
+      </g>
+    );
+  };
+
   /** 判别对象的两面图线(线/面) */
   const objectLines = () => {
     if (!layers.construct) return null;
@@ -433,9 +489,33 @@ export default function Sheet2D() {
         </g>
       );
     }
+    if (kind === 'planePlane') {
+      if (!A || !B || !C || !D || !E || !F) return null;
+      const showV = step >= 5 && layers.hidden;
+      const showH = step >= 6 && layers.hidden;
+      return (
+        <g>
+          {sV.A && sV.B && sV.C && triFill([sV.A, sV.B, sV.C], '#ef4444', 0.09)}
+          {sH.A && sH.B && sH.C && triFill([sH.A, sH.B, sH.C], '#ef4444', 0.09)}
+          {sV.D && sV.E && sV.F && triFill([sV.D, sV.E, sV.F], '#4f46e5', 0.09)}
+          {sH.D && sH.E && sH.F && triFill([sH.D, sH.E, sH.F], '#4f46e5', 0.09)}
+          {edgeSplit(A, B, 'V', ppHid.V.AB, showV, '#dc2626')}
+          {edgeSplit(B, C, 'V', ppHid.V.BC, showV, '#dc2626')}
+          {edgeSplit(C, A, 'V', ppHid.V.CA, showV, '#dc2626')}
+          {edgeSplit(D, E, 'V', ppHid.V.DE, showV, '#4338ca')}
+          {edgeSplit(E, F, 'V', ppHid.V.EF, showV, '#4338ca')}
+          {edgeSplit(F, D, 'V', ppHid.V.FD, showV, '#4338ca')}
+          {edgeSplit(A, B, 'H', ppHid.H.AB, showH, '#dc2626')}
+          {edgeSplit(B, C, 'H', ppHid.H.BC, showH, '#dc2626')}
+          {edgeSplit(C, A, 'H', ppHid.H.CA, showH, '#dc2626')}
+          {edgeSplit(D, E, 'H', ppHid.H.DE, showH, '#4338ca')}
+          {edgeSplit(E, F, 'H', ppHid.H.EF, showH, '#4338ca')}
+          {edgeSplit(F, D, 'H', ppHid.H.FD, showH, '#4338ca')}
+        </g>
+      );
+    }
     /* linePlane */
-    if (!A || !B || !C || !D || !E) return null;
-    /** DE 投影按被挡区间拆成 实-虚-实 三段(face 视图) */
+    if (!A || !B || !C || !D || !E) return null;    /** DE 投影按被挡区间拆成 实-虚-实 三段(face 视图) */
     const deLine = (face: Face, hidden: [number, number] | null, show: boolean) => {
       const q0 = sys.sheetPos(face, D);
       const q1 = sys.sheetPos(face, E);
@@ -755,6 +835,139 @@ export default function Sheet2D() {
     return out;
   };
 
+  /* ---- ch3 辅助投影面作图 + 交线 + 结论 ---- */
+  const C_AUX = '#7c3aed';
+  const C_KL = '#d97706';
+  const planePlaneMarks = () => {
+    if (kind !== 'planePlane' || !A || !B || !C || !D || !E || !F) return null;
+    const out: React.ReactNode[] = [];
+    const dot = (p: Vec2, r = 0.14, fill = C_DERIVED) => (
+      <circle cx={P(p)[0]} cy={P(p)[1]} r={r} fill={fill} />
+    );
+    const lbl = (at: Vec2, t: string, dx = 0.35, dy = 0.5, color = C_DERIVED) =>
+      layers.labels ? conclusion(at, t, color, dx, dy) : null;
+
+    /** 铅垂辅助面:积聚线延长 + 绳索 M、N 两面标注 + 正面交线 m′n′ */
+    const drawCord = (
+      cord: { M: Vec3; N: Vec3 } | null,
+      G0: Vec3,
+      G1: Vec3,
+      ord: string,
+    ) => {
+      if (!cord) return null;
+      const mH = sys.sheetPos('H', cord.M);
+      const nH = sys.sheetPos('H', cord.N);
+      const mV = sys.sheetPos('V', cord.M);
+      const nV = sys.sheetPos('V', cord.N);
+      const a = projH(G0);
+      const b = projH(G1);
+      const u = norm2(sub2(b, a));
+      if (!u) return null;
+      const ex0 = add2(a, mul2(u, -0.8));
+      const ex1 = add2(b, mul2(u, 0.8));
+      return (
+        <g>
+          <line {...lineP(ex0, ex1)} stroke={C_AUX} strokeWidth={0.05} strokeDasharray="0.3 0.18" />
+          {layers.projectors && (
+            <>
+              <line {...lineP(mH, mV)} {...dashed} stroke={C_AUX} />
+              <line {...lineP(nH, nV)} {...dashed} stroke={C_AUX} />
+            </>
+          )}
+          <line {...lineP(mV, nV)} stroke={C_AUX} strokeWidth={0.06} />
+          {dot(mH, 0.13, C_AUX)}
+          {dot(nH, 0.13, C_AUX)}
+          {dot(mV, 0.13, C_AUX)}
+          {dot(nV, 0.13, C_AUX)}
+          {lbl(mH, `m${ord}`, 0.3, 0.45, C_AUX)}
+          {lbl(nH, `n${ord}`, 0.3, -0.55, C_AUX)}
+          {lbl(mV, `m${ord}′`, 0.3, 0.5, C_AUX)}
+          {lbl(nV, `n${ord}′`, 0.3, 0.5, C_AUX)}
+          {lbl(ex1, `R${ord ? ord : ''} ⊥ H`, 0.3, 0.35, C_AUX)}
+        </g>
+      );
+    };
+
+    if (layers.construct) {
+      if (step >= 1) {
+        const g = drawCord(cords.DE, D, E, '');
+        if (g) out.push(<g key="cord1">{g}</g>);
+      }
+      if (step >= 3) {
+        const g = drawCord(cords.DF, D, F, '\u2082');
+        if (g) out.push(<g key="cord2">{g}</g>);
+      }
+    }
+
+    const kv = ppHit ? sys.sheetPos('V', ppHit.K) : null;
+    const kh = ppHit ? sys.sheetPos('H', ppHit.K) : null;
+    const lv = ppHit ? sys.sheetPos('V', ppHit.L) : null;
+    const lh = ppHit ? sys.sheetPos('H', ppHit.L) : null;
+    if (step >= 2 && kv && kh) {
+      out.push(
+        <g key="ptK">
+          {layers.projectors && <line {...lineP(kv, kh)} {...dashed} />}
+          {dot(kv, 0.16)}
+          {dot(kh, 0.16)}
+          {lbl(kv, 'k′', 0.35, 0.55)}
+          {lbl(kh, 'k', 0.35, -0.55)}
+        </g>,
+      );
+    }
+    if (step >= 3 && lv && lh) {
+      out.push(
+        <g key="ptL">
+          {layers.projectors && <line {...lineP(lv, lh)} {...dashed} />}
+          {dot(lv, 0.16)}
+          {dot(lh, 0.16)}
+          {lbl(lv, 'l′', 0.35, 0.55)}
+          {lbl(lh, 'l', 0.35, -0.55)}
+        </g>,
+      );
+    }
+    /* 交线 KL:两面加粗琥珀线 */
+    if (step >= 4 && kv && kh && lv && lh) {
+      out.push(
+        <g key="kl">
+          <line {...lineP(kv, lv)} stroke={C_KL} strokeWidth={0.115} />
+          <line {...lineP(kh, lh)} stroke={C_KL} strokeWidth={0.115} />
+        </g>,
+      );
+    }
+    /* 被挡段结论 */
+    if (step >= 5 && layers.hidden) {
+      for (const [iv, g0, g1] of [
+        [ppHid.V.DE, D, E],
+        [ppHid.V.FD, F, D],
+      ] as [([number, number] | undefined), Vec3, Vec3][]) {
+        if (!iv) continue;
+        const mid = sys.sheetPos('V', linePoint(g0, g1, (iv[0] + iv[1]) / 2));
+        out.push(
+          <g key="conclV">
+            {conclusion(mid, '∵ 平面的后侧段被挡 → 画虚线', C_BAD, 0, -0.65, 'middle')}
+          </g>,
+        );
+        break;
+      }
+    }
+    if (step >= 6 && layers.hidden) {
+      for (const [iv, g0, g1] of [
+        [ppHid.H.DE, D, E],
+        [ppHid.H.FD, F, D],
+      ] as [([number, number] | undefined), Vec3, Vec3][]) {
+        if (!iv) continue;
+        const mid = sys.sheetPos('H', linePoint(g0, g1, (iv[0] + iv[1]) / 2));
+        out.push(
+          <g key="conclH">
+            {conclusion(mid, '∵ 平面的下侧段被挡 → 画虚线', C_BAD, 0, 0.8, 'middle')}
+          </g>,
+        );
+        break;
+      }
+    }
+    return out;
+  };
+
   /* ---- 标签(带括号判别) ---- */
   const labelV = (k: PtKey, base: string): string => {
     const lbl = projLabel(base, 'V');
@@ -819,10 +1032,17 @@ export default function Sheet2D() {
           </g>
         ))}
       {kind === 'linePlane' &&
-        ['A', 'B', 'C', 'D', 'E'].map((k) => (
+        (['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => (
           <g key={k}>
             {projLine(sV[k as PtKey])}
             {projLine(sH[k as PtKey])}
+          </g>
+        ))}
+      {kind === 'planePlane' &&
+        ALL_PTS.map((k) => (
+          <g key={k}>
+            {projLine(sV[k])}
+            {projLine(sH[k])}
           </g>
         ))}
 
@@ -830,6 +1050,7 @@ export default function Sheet2D() {
       {coincidentMarks()}
       {crossingMarks()}
       {linePlaneMarks()}
+      {planePlaneMarks()}
 
       {/* 新轴 OX₁(ch2) */}
       {showV1 && axisO && axisDir && (
@@ -878,7 +1099,7 @@ export default function Sheet2D() {
       )}
 
       {/* 投影点(可拖);重影对的两标签错开,避免叠字 */}
-      {(['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => {
+      {ALL_PTS.map((k) => {
         const offV: Vec2 = k === 'B' && abV ? [-1.7, 0.25] : [0.45, 0.25];
         const offH: Vec2 = k === 'D' && cdH ? [-1.5, -0.75] : [0.45, -0.75];
         return (

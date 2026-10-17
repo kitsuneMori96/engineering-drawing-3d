@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '../../lib/math';
 import { buildSystem } from '../../lib/engine';
 import {
+  auxPlaneCord,
   clipToTriangle2D,
   coincidentPair,
   compareValue,
@@ -11,6 +12,7 @@ import {
   linePoint,
   lineVsPlane,
   planePointAtView,
+  planePlane,
   projH,
   projV,
   segSegCross,
@@ -137,6 +139,72 @@ describe('ch2 线面相交(精确例)', () => {
         [0, 0],
       ]),
     ).toBeNull();
+  });
+});
+
+describe('ch3 两平面相交(预设精确例)', () => {
+  // △ABC:平面 −x+5y+6z=31;△DEF 的边 DE、DF 各穿入三角形内部
+  const A: Vec3 = [5, 6, 1];
+  const B: Vec3 = [1, 4, 2];
+  const C: Vec3 = [4, 1, 5];
+  const D: Vec3 = [2.6, 6.4, 6.4];
+  const E: Vec3 = [4.6, 3.8, 1.2];
+  const F: Vec3 = [4.2, 1.2, 3.6];
+  const K: Vec3 = [4.193073593073592, 4.329004329004329, 2.2580086580086585];
+  const L: Vec3 = [3.9261261261261264, 2.09009009009009, 4.079279279279279];
+
+  it('DE、DF 分别以 s=184/231、92/111 穿入 △ABC', () => {
+    const h1 = lineVsPlane(D, E, A, B, C)!;
+    const h2 = lineVsPlane(D, F, A, B, C)!;
+    expect(near(h1.s, 184 / 231, 1e-9)).toBe(true);
+    expect(h1.insideTri).toBe(true);
+    expect(near(h2.s, 92 / 111, 1e-9)).toBe(true);
+    expect(h2.insideTri).toBe(true);
+  });
+  it('planePlane:端点=两穿透点,分属 DE、FD 边', () => {
+    const { parallel, hit } = planePlane(A, B, C, D, E, F);
+    expect(parallel).toBe(false);
+    expect(hit).not.toBeNull();
+    expect(vec3Near(hit!.K, K, 1e-9)).toBe(true);
+    expect(vec3Near(hit!.L, L, 1e-9)).toBe(true);
+    expect(hit!.kEdge).toEqual(['D', 'E']);
+    expect(hit!.lEdge).toEqual(['F', 'D']);
+    expect(near(hit!.length, 2.8984521033175734, 1e-9)).toBe(true);
+  });
+  it('辅助面绳索:两端点 H 投影都在积聚线 de 上', () => {
+    const cord = auxPlaneCord(D, E, [A, B, C])!;
+    const v: [number, number] = [projH(E)[0] - projH(D)[0], projH(E)[1] - projH(D)[1]];
+    for (const P of [cord.M, cord.N]) {
+      const w: [number, number] = [projH(P)[0] - projH(D)[0], projH(P)[1] - projH(D)[1]];
+      expect(Math.abs(w[0] * v[1] - w[1] * v[0])).toBeLessThan(1e-9);
+    }
+  });
+  it('作图 ≡ 解析:m′n′ 与 d′e′ 的交点 = projV(K)、= projV(L)', () => {
+    const c1 = auxPlaneCord(D, E, [A, B, C])!;
+    const x1 = segSegCross(projV(D), projV(E), projV(c1.M), projV(c1.N))!;
+    expect(vec3Near([...x1.pt, 0] as Vec3, [...projV(K), 0] as Vec3, 1e-6)).toBe(true);
+    const c2 = auxPlaneCord(D, F, [A, B, C])!;
+    const x2 = segSegCross(projV(D), projV(F), projV(c2.M), projV(c2.N))!;
+    expect(vec3Near([...x2.pt, 0] as Vec3, [...projV(L), 0] as Vec3, 1e-6)).toBe(true);
+  });
+  it('逐边可见性:DE 两面被挡段均起于穿透点 s=184/231', () => {
+    const ivV = hiddenInterval('V', D, E, A, B, C)!;
+    const ivH = hiddenInterval('H', D, E, A, B, C)!;
+    expect(near(ivV[0], 184 / 231, 1e-9)).toBe(true);
+    expect(ivV[1]).toBeLessThan(1);
+    expect(near(ivH[0], 184 / 231, 1e-9)).toBe(true);
+    expect(near(ivH[1], 1, 1e-9)).toBe(true);
+  });
+  it('平行特例:E=D+0.8(B−A)、F=D+0.8(C−A) → 无交线', () => {
+    const E2: Vec3 = [D[0] + 0.8 * (B[0] - A[0]), D[1] + 0.8 * (B[1] - A[1]), D[2] + 0.8 * (B[2] - A[2])];
+    const F2: Vec3 = [D[0] + 0.8 * (C[0] - A[0]), D[1] + 0.8 * (C[1] - A[1]), D[2] + 0.8 * (C[2] - A[2])];
+    expect(planePlane(A, B, C, D, E2, F2)).toEqual({ parallel: true, hit: null });
+  });
+  it('图形分离:整体平移 △DEF 后平面仍相交但线段不在重叠区 → hit null', () => {
+    const sh = (P: Vec3): Vec3 => [P[0] + 6, P[1], P[2]];
+    const r = planePlane(A, B, C, sh(D), sh(E), sh(F));
+    expect(r.parallel).toBe(false);
+    expect(r.hit).toBeNull();
   });
 });
 
