@@ -9,6 +9,7 @@ import {
   Ball,
   PanHandler,
   PlaneQuad,
+  ProjLink,
   Tag,
   v3,
 } from '../../lib/three-atoms';
@@ -75,12 +76,12 @@ export default function Scene3D() {
       : null;
 
   const baseIds: { id: string; color: string }[] = [
-    { id: 'V', color: '#2563eb' },
-    { id: 'H', color: '#059669' },
+    { id: 'V', color: '#1d4ed8' },
+    { id: 'H', color: '#047857' },
   ];
   const projs = [
     ...baseIds,
-    ...(showV1 ? [{ id: 'V1', color: '#d97706' }] : []),
+    ...(showV1 ? [{ id: 'V1', color: '#b45309' }] : []),
   ];
   const triGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -156,7 +157,7 @@ export default function Scene3D() {
               def={{ ...def, color }}
               sys={sys}
               pts={live}
-              opacity={id === 'V1' ? 0.5 : 0.55}
+              opacity={id === 'V1' ? 0.36 : 0.4}
               renderOrder={i}
             />
           );
@@ -215,7 +216,7 @@ export default function Scene3D() {
               <meshBasicMaterial
                 color={OBJ}
                 transparent
-                opacity={0.62}
+                opacity={0.5}
                 side={THREE.FrontSide}
                 depthWrite
                 polygonOffset
@@ -227,7 +228,7 @@ export default function Scene3D() {
               <meshBasicMaterial
                 color="#991b1b"
                 transparent
-                opacity={0.62}
+                opacity={0.5}
                 side={THREE.BackSide}
                 depthWrite
                 polygonOffset
@@ -317,27 +318,30 @@ export default function Scene3D() {
           );
         })}
 
-        {/* 各投影面上的投影 + 投射线 */}
-        {projs.map(({ id, color }) => (
-          <group key={id}>
-            {(['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => {
-              const p = points[k];
-              if (!p) return null;
-              const pp = sys.renderPos(id, p);
-              return (
-                <group key={k}>
-                  {layers.projectors && (
-                    <Line points={[v3(p), v3(pp)]} color="#94a3b8" dashed dashSize={0.34} gapSize={0.2} lineWidth={1.1} />
-                  )}
-                  <Ball pos={pp} r={0.1} color={color} overlay />
-                  {tagFor(k, id) && (
-                    <Tag pos={pp} text={tagFor(k, id)!} color={color} dy={isInvisTag(k, id) ? 0.95 : 0.32} />
-                  )}
-                </group>
-              );
-            })}
-          </group>
-        ))}
+        {/* 各投影面上的投影 + 同名投影跨面虚线(含对象点→投影的投射段) */}
+        {(['A', 'B', 'C', 'D', 'E'] as PtKey[]).map((k) => {
+          const p = points[k];
+          if (!p) return null;
+          const planePts = projs.map(({ id }) => sys.renderPos(id, p));
+          return (
+            <group key={k}>
+              <ProjLink
+                pts={layers.projectors ? [p, ...planePts] : planePts}
+              />
+              {projs.map(({ id, color }) => {
+                const pp = sys.renderPos(id, p);
+                return (
+                  <group key={id}>
+                    <Ball pos={pp} r={0.11} color={color} overlay />
+                    {tagFor(k, id) && (
+                      <Tag pos={pp} text={tagFor(k, id)!} color={color} dy={isInvisTag(k, id) ? 0.95 : 0.32} />
+                    )}
+                  </group>
+                );
+              })}
+            </group>
+          );
+        })}
       </Canvas>
       <div className={`mode-badge ${panMode ? 'pan' : ''}`}>
         {panMode ? '平移中 · 移动鼠标平移画面(右键单击退出)' : '旋转模式 · 右键单击开始平移'}

@@ -59,7 +59,7 @@ export function PlaneQuad({
   def,
   sys,
   pts,
-  opacity = 0.55,
+  opacity = 0.45,
   renderOrder = 0,
 }: {
   def: PlaneDef;
@@ -128,6 +128,43 @@ export function PlaneQuad({
         />
       </mesh>
       <Line points={corners} color={def.color} lineWidth={1.1} transparent opacity={0.55} />
+    </group>
+  );
+}
+
+/**
+ * 同名投影跨面虚线:点 P 在各投影面上的落点两两相连(可含"对象点→投影"段)。
+ * 覆盖层渲染(depthTest=false):投影连线是读图辅助线,不被实体面切断。
+ */
+export function ProjLink({
+  pts,
+  color = '#475569',
+  lineWidth = 1.6,
+}: {
+  pts: Vec3[];
+  color?: string;
+  lineWidth?: number;
+}) {
+  const segs: [Vec3, Vec3][] = [];
+  for (let i = 0; i < pts.length; i++)
+    for (let j = i + 1; j < pts.length; j++) segs.push([pts[i], pts[j]]);
+  return (
+    <group>
+      {segs.map(([a, b], i) => (
+        <Line
+          key={i}
+          points={[v3(a), v3(b)]}
+          color={color}
+          lineWidth={lineWidth}
+          dashed
+          dashSize={0.28}
+          gapSize={0.2}
+          transparent
+          opacity={0.9}
+          depthTest={false}
+          renderOrder={9}
+        />
+      ))}
     </group>
   );
 }

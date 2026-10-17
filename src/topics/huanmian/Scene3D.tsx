@@ -12,6 +12,7 @@ import {
   Ball,
   PanHandler,
   PlaneQuad,
+  ProjLink,
   Tag,
   localToWorld,
   v3,
@@ -109,13 +110,13 @@ export default function Scene3D() {
 
   // V₁ 及其投影在讲解引入它之前(showAxis=false)隐藏;H₂ 同理
   const baseIds: { id: string; color: string }[] = [
-    { id: 'V', color: '#2563eb' },
-    { id: 'H', color: '#059669' },
+    { id: 'V', color: '#1d4ed8' },
+    { id: 'H', color: '#047857' },
   ];
   const projs: { id: string; color: string }[] = [
     ...baseIds,
-    ...(showAxis ? [{ id: 'V1', color: '#d97706' }] : []),
-    ...(showAxis2 ? [{ id: 'H2', color: '#8b5cf6' }] : []),
+    ...(showAxis ? [{ id: 'V1', color: '#b45309' }] : []),
+    ...(showAxis2 ? [{ id: 'H2', color: '#6d28d9' }] : []),
   ];
   const planes: PlaneDef[] = projs.map((p) => sys.defs.get(p.id)!);
   const hDef = sys.defs.get('H')!;
@@ -158,7 +159,7 @@ export default function Scene3D() {
       {showAxis && v1Def && <AxisLine sys={sys} def={v1Def} pts={planePts} />}
       {showAxis2 && h2Def && <AxisLine sys={sys} def={h2Def} pts={planePts} />}
 
-      {layers.planes && planes.map((def) => <PlaneQuad key={def.id} def={def} sys={sys} pts={planePts} />)}
+      {layers.planes && planes.map((def) => <PlaneQuad key={def.id} def={def} sys={sys} pts={planePts} opacity={0.4} />)}
 
       {/* 几何元素 */}
       <Line points={[v3(A), v3(B)]} color={OBJ} lineWidth={3} />
@@ -167,7 +168,7 @@ export default function Scene3D() {
           <meshBasicMaterial
             color={OBJ}
             transparent
-            opacity={0.16}
+            opacity={0.28}
             side={THREE.DoubleSide}
             depthWrite={false}
           />
@@ -226,6 +227,13 @@ export default function Scene3D() {
             )}
           </group>
         );
+      })}
+
+      {/* 同名投影跨面虚线:a′—a、a′—a₁…(覆盖层,不被实体面切断) */}
+      {(['A', 'B', 'C'] as const).map((key) => {
+        const P = points[key];
+        const pts = projs.map(({ id }) => sys.renderPos(id, P));
+        return <ProjLink key={key} pts={pts} />;
       })}
 
       {/* 等距规律:features.measuresV1 —— a′→OX 与 a₁→OX₁ 同值 */}
