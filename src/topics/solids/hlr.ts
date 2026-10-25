@@ -159,7 +159,30 @@ export function hiddenLines(mesh: TriMesh, view: ViewBasis): HlrResult {
     if (runStart !== null) flush(runStart, sorted[sorted.length - 1]);
   }
 
-  return { visible, hidden: suppressCoincident(hidden, visible) };
+  return { visible: dedupe(visible), hidden: dedupe(suppressCoincident(hidden, visible)) };
+}
+
+/** 相邻面会在同一条棱上各产生一段投影,端点相同就只留一条,并合并截切组 */
+function dedupe(segs: Seg2[]): Seg2[] {
+  const out: Seg2[] = [];
+  const seen = new Map<string, Seg2>();
+  const q = (v: number) => v.toFixed(4);
+  for (const s of segs) {
+    const end = (p: Vec2) => `${q(p[0])},${q(p[1])}`;
+    const [e1, e2] = [end(s.a), end(s.b)];
+    const key = e1 < e2 ? `${e1}|${e2}` : `${e2}|${e1}`;
+    const prev = seen.get(key);
+    if (prev) {
+      if (s.groups.some((g) => !prev.groups.includes(g))) {
+        prev.groups = [...new Set([...prev.groups, ...s.groups])];
+      }
+      if (s.outline) prev.outline = true;
+      continue;
+    }
+    seen.set(key, s);
+    out.push(s);
+  }
+  return out;
 }
 
 const onLine = (p: Vec2, a: Vec2, b: Vec2): boolean => {

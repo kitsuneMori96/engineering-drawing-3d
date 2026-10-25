@@ -160,7 +160,8 @@ export const cutZ = (z: number, keep: 1 | -1, extra: Partial<CutPlane> = {}): Cu
 export function cutThrough(p1: Vec3, p2: Vec3, p3: Vec3, keepPoint: Vec3, extra: Partial<CutPlane> = {}): CutPlane {
   const n0 = cross3(sub3(p2, p1), sub3(p3, p1));
   const n = norm3(n0);
-  const flip = dot3(n, sub3(keepPoint, p1)) < 0 ? -1 : 1;
+  // 保留侧是 n·P ≤ d:必须让 keepPoint 落在法向的反方向
+  const flip = dot3(n, sub3(keepPoint, p1)) > 0 ? -1 : 1;
   const nn: Vec3 = [n[0] * flip, n[1] * flip, n[2] * flip];
   return cutAt(nn, p1, extra);
 }
