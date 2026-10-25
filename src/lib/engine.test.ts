@@ -134,10 +134,46 @@ describe('平面换面(积聚成线 → 实形 → 倾角)', () => {
   });
 });
 
+describe('三面体系 W(左视图)', () => {
+  const x0 = 9;
+  const tri: PlaneDef[] = [
+    ...base,
+    { id: 'W', parentId: 'V', name: 'W', axisLabel: 'OZ', axisPos: [x0, 0], axisDir: [0, 1], side: -1, color: '' },
+  ];
+  const sys = buildSystem(tri, () => 1);
+
+  it('W 局部坐标 = (高, 深),纸面 = (x₀+深, 高)', () => {
+    expect(sys.local('W', A)).toEqual([A[1], A[2]]);
+    const [x, y] = sys.sheetPos('W', A);
+    near(x, x0 + A[2]);
+    near(y, A[1]);
+  });
+
+  it('三视图恒等式:V.x=H.x,V.y=W.y,W.x−x₀=−H.y', () => {
+    for (const P of [A, B, C]) {
+      const v = sys.sheetPos('V', P);
+      const h = sys.sheetPos('H', P);
+      const w = sys.sheetPos('W', P);
+      near(v[0], h[0]);
+      near(v[1], w[1]);
+      near(w[0] - x0, -h[1]);
+    }
+  });
+
+  it('展开到 0 时 W 立在 V 右侧(宽相等以深度计量)', () => {
+    const flat = buildSystem(tri, () => 0);
+    const p = flat.renderPos('W', A);
+    near(p[0], x0);
+    near(p[1], A[1]);
+    near(p[2], A[2]);
+  });
+});
+
 describe('投影命名', () => {
-  it('V→a′,H→a,第 n 次换面→aₙ', () => {
+  it('V→a′,H→a,W→a″,第 n 次换面→aₙ', () => {
     expect(projLabel('a', 'V')).toBe('a\u2032');
     expect(projLabel('a', 'H')).toBe('a');
+    expect(projLabel('a', 'W')).toBe('a\u2033');
     expect(projLabel('a', 'V1')).toBe('a\u2081');
     expect(projLabel('a', 'H2')).toBe('a\u2082');
   });

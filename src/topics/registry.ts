@@ -1,4 +1,4 @@
-export type TopicId = 'home' | 'huanmian' | 'visibility' | 'basics';
+export type TopicId = 'home' | 'huanmian' | 'visibility' | 'solids' | 'basics';
 
 export interface TopicMeta {
   id: TopicId;
@@ -23,6 +23,14 @@ export const TOPICS: TopicMeta[] = [
     summary:
       '重影点与括号标注 → 两直线投影交叉的可见性判别 → 直线与平面相交 → 两平面交线(辅助投影面法)与逐边可见性,拖拽实时验证。',
     chapterCount: 4,
+    ready: true,
+  },
+  {
+    id: 'solids',
+    title: '立体截切',
+    summary:
+      '三面体系与三视图 → 平面立体截切规律 → 补第三视图 → 截切体表面取点;10 道教材截切例题(4-3)支持显示答案、分步补图与隐藏立体图。',
+    chapterCount: 8,
     ready: true,
   },
   {

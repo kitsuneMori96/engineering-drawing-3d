@@ -7,13 +7,18 @@ import type { TopicId } from './topics/registry';
  * 初始主题在模块加载时同步读 URL——放 useEffect 会与各视图的 URL 回写竞态。
  */
 
-function bootTopic(): TopicId {
-  const q = new URLSearchParams(window.location.search);
+export function parseBootTopic(search: string): TopicId {
+  const q = new URLSearchParams(search);
   const t = q.get('topic');
-  if (t === 'huanmian' || t === 'visibility' || t === 'basics' || t === 'home') return t;
+  if (t === 'huanmian' || t === 'visibility' || t === 'solids' || t === 'basics' || t === 'home')
+    return t;
   // 旧版分享链接只有 ?ch=,回落到换面法
   if (q.get('ch') !== null) return 'huanmian';
   return 'home';
+}
+
+function bootTopic(): TopicId {
+  return parseBootTopic(window.location.search);
 }
 
 interface NavState {

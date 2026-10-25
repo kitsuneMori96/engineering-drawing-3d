@@ -51,9 +51,17 @@ export function Tag({
   );
 }
 
+export interface PlaneBounds {
+  uMin: number;
+  uMax: number;
+  vMin: number;
+  vMax: number;
+}
+
 /**
  * 投影面面片:按该面上所有投影点的局部坐标包围盒(u 沿轴、v 到轴)自适应生成,
  * 并始终包含轴线(v=0),保证"点永远落在面内、面永远托着点"。
+ * 三面体系里用 bounds 显式收边,避免默认 MARGIN 在 OZ 两侧留双色带。
  */
 export function PlaneQuad({
   def,
@@ -61,12 +69,14 @@ export function PlaneQuad({
   pts,
   opacity = 0.45,
   renderOrder = 0,
+  bounds,
 }: {
   def: PlaneDef;
   sys: System;
   pts: Vec3[];
   opacity?: number;
   renderOrder?: number;
+  bounds?: PlaneBounds;
 }) {
   const f = sys.renderFrame(def.id);
   const q = new THREE.Quaternion().setFromRotationMatrix(
@@ -80,10 +90,10 @@ export function PlaneQuad({
   const us = locals.map((l) => l[0]);
   const vs = locals.map((l) => l[1]);
   const MARGIN = 1.6;
-  const uMin = Math.min(0, ...us) - MARGIN;
-  const uMax = Math.max(0, ...us) + MARGIN;
-  const vMin = Math.min(0, ...vs) - MARGIN;
-  const vMax = Math.max(0, ...vs) + MARGIN;
+  const uMin = bounds ? bounds.uMin : Math.min(0, ...us) - MARGIN;
+  const uMax = bounds ? bounds.uMax : Math.max(0, ...us) + MARGIN;
+  const vMin = bounds ? bounds.vMin : Math.min(0, ...vs) - MARGIN;
+  const vMax = bounds ? bounds.vMax : Math.max(0, ...vs) + MARGIN;
   const uC = (uMin + uMax) / 2;
   const vC = (vMin + vMax) / 2;
   const uH = Math.max(3, (uMax - uMin) / 2);

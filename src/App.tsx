@@ -3,6 +3,7 @@ import { useNav } from './nav';
 import Home from './topics/Home';
 import HuanmianApp from './topics/huanmian/App';
 import VisibilityApp from './topics/visibility/App';
+import SolidsApp from './topics/solids/App';
 
 /**
  * 主题壳:同一时刻只挂载一个主题(模块级单例如换面法 useSystem 依赖这一点)。
@@ -23,5 +24,6 @@ export default function App() {
 
   if (topic === 'huanmian') return <HuanmianApp />;
   if (topic === 'visibility') return <VisibilityApp />;
+  if (topic === 'solids') return <SolidsApp />;
   return <Home />;
 }

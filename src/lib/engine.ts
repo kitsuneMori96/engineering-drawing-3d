@@ -195,10 +195,11 @@ export function buildSystem(defs: PlaneDef[], unfoldOf: (id: string) => number):
   };
 }
 
-/** 投影面名称后缀:根 V → a′,H → a,第 n 次换面 → aₙ */
+/** 投影面名称后缀:根 V → a′,H → a,W → a″,第 n 次换面 → aₙ */
 export function projLabel(base: string, planeId: string): string {
   if (planeId === 'V') return base + '\u2032';
   if (planeId === 'H') return base;
+  if (planeId === 'W') return base + '\u2033';
   const n = planeId.match(/(\d+)$/)?.[1] ?? '1';
   const sub = String.fromCodePoint(0x2080 + Number(n));
   return base + sub;
