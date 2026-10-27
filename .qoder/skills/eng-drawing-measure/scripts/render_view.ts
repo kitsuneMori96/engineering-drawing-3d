@@ -57,7 +57,7 @@ const pad = 4;
 const W = Math.round((xmax - xmin + pad * 2) * scale);
 const H = Math.round((ymax - ymin + pad * 2) * scale);
 const px = (x: number) => (x - xmin + pad) * scale;
-const py = (y: number) => (ymax - (y - ymin) + pad) * scale;
+const py = (y: number) => (ymax - y + pad) * scale;
 
 const summary = `${out} view=${view} ${W}x${H} vis=${res.visible.length} hid=${withHidden ? res.hidden.length : 0}`;
 
