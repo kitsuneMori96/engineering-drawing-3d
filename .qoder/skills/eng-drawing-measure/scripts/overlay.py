@@ -92,10 +92,12 @@ def sample_dev(pts: np.ndarray, dt: np.ndarray, sx: float, sy: float,
     return np.where(inside, dt[yi, xi], out_penalty)
 
 
-def fit(pts: np.ndarray, dt: np.ndarray, s0: float, tx0: float, ty0: float,
-        out_penalty: float, aniso: bool
+def fit(pts: np.ndarray, dt: np.ndarray, sx0: float, sy0: float,
+        tx0: float, ty0: float, out_penalty: float, aniso: bool
         ) -> tuple[float, float, float, float, float]:
     """坐标下降求 (sx, sy, tx, ty);aniso=False 时 sx≡sy。返回 (mean, sx, sy, tx, ty)。"""
+    s0 = (sx0 + sy0) / 2
+
     def mean_at(sx: float, sy: float, tx: float, ty: float) -> float:
         return float(sample_dev(pts, dt, sx, sy, tx, ty, out_penalty).mean())
 
@@ -123,16 +125,23 @@ def fit(pts: np.ndarray, dt: np.ndarray, s0: float, tx0: float, ty0: float,
     best = descend(score, best, 1.0, 0.5)
 
     if aniso:
-        seed = (mean_at(*best[1:]), best[1], best[2], best[3], best[4])
-        for pct in np.arange(-0.04, 0.0401, 0.01):
-            for pct2 in np.arange(-0.04, 0.0401, 0.01):
-                _, sx, sy, tx, ty = seed
-                cand = (mean_at(sx * (1 + pct), sy * (1 + pct2), tx, ty),
-                        sx * (1 + pct), sy * (1 + pct2), tx, ty)
-                cand = descend(mean_at, cand, 2.0, 1.0)
-                if cand[0] < seed[0]:
-                    seed = cand
-        best = seed
+        # 各向异性细化:既从均匀结果出发,也从"宽比宽、高比高"的形变种子出发,
+        # 否则拉伸超过 ±4% 的扫描件永远搜不到正确横纵比例
+        seeds = [(best[1], best[2], best[3], best[4]), (sx0, sy0, best[3], best[4])]
+        overall = mean_at(*best[1:])
+        for sx, sy, tx, ty in seeds:
+            seed = (mean_at(sx, sy, tx, ty), sx, sy, tx, ty)
+            for pct in np.arange(-0.04, 0.0401, 0.01):
+                for pct2 in np.arange(-0.04, 0.0401, 0.01):
+                    _, sx, sy, tx, ty = seed
+                    cand = (mean_at(sx * (1 + pct), sy * (1 + pct2), tx, ty),
+                            sx * (1 + pct), sy * (1 + pct2), tx, ty)
+                    cand = descend(mean_at, cand, 2.0, 1.0)
+                    if cand[0] < seed[0]:
+                        seed = cand
+            if seed[0] < overall:
+                overall = seed[0]
+                best = (overall, seed[1], seed[2], seed[3], seed[4])
     return mean_at(*best[1:]), best[1], best[2], best[3], best[4]
 
 
@@ -268,10 +277,15 @@ def main() -> None:
     assert sb and rb
     sw, sh = sb[2] - sb[0] + 1, sb[3] - sb[1] + 1
     rw, rh = rb[2] - rb[0] + 1, rb[3] - rb[1] + 1
-    starts: list[float] = []
-    for cand in (sw / rw, sh / rh, (sw / rw + sh / rh) / 2):
-        if all(abs(cand / s - 1) > 0.004 for s in starts):
-            starts.append(cand)
+    # (sx, sy) 种子:--aniso 时先给"宽比宽、高比高"的形变起点
+    starts: list[tuple[float, float]] = []
+    cand_pairs: list[tuple[float, float]] = (
+        [(sw / rw, sh / rh)] if args.aniso else []
+    ) + [(v, v) for v in (sw / rw, sh / rh, (sw / rw + sh / rh) / 2)]
+    for pair in cand_pairs:
+        if all(abs(pair[0] / s[0] - 1) > 0.004 and abs(pair[1] / s[1] - 1) > 0.004
+               for s in starts):
+            starts.append(pair)
 
     pts0 = ink_points(r_ink)
     dt = ndimage.distance_transform_edt(~src_ink)
@@ -285,10 +299,10 @@ def main() -> None:
             pts[:, 0] = (r_gray.shape[1] - 1) - pts[:, 0]
         px0, px1 = pts[:, 0].min(), pts[:, 0].max()
         py0, py1 = pts[:, 1].min(), pts[:, 1].max()
-        for s0 in starts:
-            tx0 = sb[0] + sw / 2 - s0 * (px0 + px1) / 2
-            ty0 = sb[1] + sh / 2 - s0 * (py0 + py1) / 2
-            mean, sx, sy, tx, ty = fit(pts, dt, s0, tx0, ty0, out_penalty, args.aniso)
+        for s0x, s0y in starts:
+            tx0 = sb[0] + sw / 2 - s0x * (px0 + px1) / 2
+            ty0 = sb[1] + sh / 2 - s0y * (py0 + py1) / 2
+            mean, sx, sy, tx, ty = fit(pts, dt, s0x, s0y, tx0, ty0, out_penalty, args.aniso)
             if best is None or mean < best[0]:
                 best = (mean, sx, sy, tx, ty, name, flip, pts)
     assert best
