@@ -10,11 +10,21 @@ const GROUPS = {
 };
 
 function assemble(faces: PolyFace[]): PolySolid {
+  return finish(faces, true);
+}
+
+/** 面已按右手约定构造,跳过质心启发式朝向(非凸棱柱会被该启发式翻错) */
+function assembleExact(faces: PolyFace[]): PolySolid {
+  return finish(faces, false);
+}
+
+function finish(faces: PolyFace[], normalize: boolean): PolySolid {
   const ids = new Set(faces.map((f) => f.group));
   const groups: FaceGroup[] = [];
   if (ids.has('base')) groups.push(GROUPS.base);
   if (ids.has('side')) groups.push(GROUPS.side);
   if (ids.has('top')) groups.push(GROUPS.top);
+  if (!normalize) return { faces, groups };
   const centroid = faces
     .flatMap((f) => f.pts)
     .reduce<Vec3>((acc, p) => add3(acc, p), [0, 0, 0]);
@@ -115,36 +125,60 @@ export function boxBounds(
   return assemble(faces);
 }
 
-/** 横放棱柱:把 (z,y) 截面沿 X 从 x0 拉伸到 x1 */
-export function extrudeX(profile: Vec2[], x0: number, x1: number): PolySolid {
-  const lo = profile.map((p) => [x0, p[1], p[0]] as Vec3);
-  const hi = profile.map((p) => [x1, p[1], p[0]] as Vec3);
-  const faces: PolyFace[] = [
-    { group: 'base', pts: lo },
-    { group: 'base', pts: hi },
-  ];
-  const n = profile.length;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    faces.push({ group: 'side', pts: [lo[i], lo[j], hi[j], hi[i]] });
+/**
+ * 剖面绕向断言:拉伸体侧面法向由剖面点序决定,必须相对拉伸轴呈右手逆时针。
+ * 违反时 BSP 差集会取反或产生退化面(3D 碎裂、视图错乱),故在构造入口即抛错。
+ * @param sign 该轴向下正面积对应的右手符号(extrudeZ/+z 为 +1,extrudeX/+x 为 -1)
+ */
+function assertWinding(profile: Vec2[], sign: number, fn: string, axisLo: number, axisHi: number) {
+  let s = 0;
+  for (let i = 0; i < profile.length; i++) {
+    const a = profile[i];
+    const b = profile[(i + 1) % profile.length];
+    s += a[0] * b[1] - b[0] * a[1];
   }
-  return assemble(faces);
+  const want = sign * Math.sign(axisHi - axisLo);
+  if (s * want <= 0) {
+    throw new Error(
+      `${fn}: 剖面绕向错误(有向面积 ${s.toFixed(3)},应为${want > 0 ? '逆时针' : '顺时针'});` +
+        `反转点序即可,剖面=${JSON.stringify(profile)}`,
+    );
+  }
 }
 
-/** 立放棱柱:把 (x,y) 截面沿 Z 从 z0 拉伸到 z1 */
+/** 横放棱柱:把 (z,y) 截面沿 X 从 x0 拉伸到 x1(相对 +x 右手逆时针,即 (z,y) 负面积) */
+export function extrudeX(profile: Vec2[], x0: number, x1: number): PolySolid {
+  assertWinding(profile, -1, 'extrudeX', x0, x1);
+  const at = (x: number, p: Vec2) => [x, p[1], p[0]] as Vec3;
+  return prism(profile, at, x0, x1);
+}
+
+/** 立放棱柱:把 (x,y) 截面沿 Z 从 z0 拉伸到 z1(相对 +z 右手逆时针,即 (x,y) 正面积) */
 export function extrudeZ(profile: Vec2[], z0: number, z1: number): PolySolid {
-  const lo = profile.map((p) => [p[0], p[1], z0] as Vec3);
-  const hi = profile.map((p) => [p[0], p[1], z1] as Vec3);
+  assertWinding(profile, 1, 'extrudeZ', z0, z1);
+  const at = (z: number, p: Vec2) => [p[0], p[1], z] as Vec3;
+  return prism(profile, at, z0, z1);
+}
+
+/**
+ * 拉伸成棱柱,端面/侧面法向在 assertWinding 保证的绕向下一律按右手直接构成,
+ * 不走 orientFace 质心启发式(非凸截面会被它翻错,如 P6 台阶棱柱)。
+ * hi 端面沿剖面顺序、lo 端面反序时,外法向均指向轴外侧。
+ */
+function prism(profile: Vec2[], at: (axis: number, p: Vec2) => Vec3, a0: number, a1: number): PolySolid {
+  const rev = [...profile].reverse();
   const faces: PolyFace[] = [
-    { group: 'base', pts: lo },
-    { group: 'base', pts: hi },
+    { group: 'base', pts: rev.map((p) => at(a0, p)) },
+    { group: 'base', pts: profile.map((p) => at(a1, p)) },
   ];
   const n = profile.length;
+  const lo = profile.map((p) => at(a0, p));
+  const hi = profile.map((p) => at(a1, p));
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     faces.push({ group: 'side', pts: [lo[i], lo[j], hi[j], hi[i]] });
   }
-  return assemble(faces);
+  return assembleExact(faces);
 }
 
 /* ---------- 截平面构造 ---------- */

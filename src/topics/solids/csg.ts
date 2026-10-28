@@ -199,6 +199,56 @@ export interface SubtractOptions {
   color?: string;
 }
 
+/** Newell 法多边形面积 */
+function faceArea(pts: Vec3[]): number {
+  const n = [0, 0, 0];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+    n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+    n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  return Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]) / 2;
+}
+
+/** 散度定理体积(要求面法向外) */
+function solidVolume(s: PolySolid): number {
+  let v = 0;
+  for (const f of s.faces) {
+    for (let i = 1; i + 1 < f.pts.length; i++) {
+      v += dot3(f.pts[0], cross3(f.pts[i], f.pts[i + 1])) / 6;
+    }
+  }
+  return v;
+}
+
+/**
+ * 差集结果体检:BSP 对相切/共面接触会产生退化面甚至取反(3D 碎裂、视图错乱),
+ * 这类输入端看不出的错误在这里以显式异常暴露,而不是留到肉眼发现。
+ */
+function validateDifference(solid: PolySolid, result: PolySolid, o: SubtractOptions) {
+  if (result.faces.length === 0) return;
+  const tag = `布尔减「${o.name ?? o.group}」`;
+  for (const f of result.faces) {
+    const a = faceArea(f.pts);
+    if (a < 1e-5) {
+      throw new Error(
+        `${tag}: 产生退化面(面积 ${a.toExponential(1)})——切块边界与实体棱/顶点相切,` +
+          `请把切块顶点移出实体或略微错开坐标`,
+      );
+    }
+  }
+  const volR = solidVolume(result);
+  const volS = solidVolume(solid);
+  if (!(volR > 0)) {
+    throw new Error(`${tag}: 结果体积 ${volR.toFixed(3)} ≤ 0——差集被取反,检查切块剖面绕向(extrudeZ 需正面积)`);
+  }
+  if (volS - volR < 1e-6) {
+    throw new Error(`${tag}: 未移除任何材料(${volS.toFixed(2)} → ${volR.toFixed(2)})——切块可能未碰到实体`);
+  }
+}
+
 /** solid − tool,工具上残留的面归入 options.group(截断面) */
 export function subtractSolid(
   solid: PolySolid,
@@ -232,7 +282,9 @@ export function subtractSolid(
       color: options.color,
     });
   }
-  return fromPolygons(a.allPolygons(), groups);
+  const result = fromPolygons(a.allPolygons(), groups);
+  validateDifference(solid, result, options);
+  return result;
 }
 
 /** 渲染用网格(截切后) */

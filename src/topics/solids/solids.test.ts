@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildSystem, type PlaneDef } from '../../lib/engine';
 import { dot3, cross3, type Vec2, type Vec3 } from '../../lib/math';
-import { box, boxBounds, cutX, cutY, extrudeX, regularPrism, regularPyramid } from './bodies';
+import { box, boxBounds, cutX, cutY, extrudeX, extrudeZ, regularPrism, regularPyramid } from './bodies';
 import { subtractSolid } from './csg';
 import { cutSolid } from './clip';
+import { SOLID_PROBLEMS, problemSolid } from './problems';
 import { buildMesh, type TriMesh } from './mesh';
 import { hiddenLines, viewBasis } from './hlr';
 import { pickSurface, isPointVisible } from './ray';
@@ -76,8 +77,8 @@ describe('三角化与特征边', () => {
 describe('半空间截切', () => {
   const profile: Vec2[] = [
     [0, 0],
-    [3, 0],
     [0, 4],
+    [3, 0],
   ];
   const prism = extrudeX(profile, 0, 10);
 
@@ -169,6 +170,44 @@ describe('隐藏线', () => {
     const r = hiddenLines(mesh, viewBasis('V'));
     expect(r.visible.length).toBeGreaterThan(0);
     expect(closed(mesh)).toBe(true);
+  });
+});
+
+describe('建模防呆断言', () => {
+  it('extrudeZ 顺时针剖面在入口抛错', () => {
+    expect(() => extrudeZ([[0, 0], [0, 2], [3, 2], [3, 0]], 0, 4)).toThrow(/剖面绕向错误/);
+  });
+
+  it('extrudeX 逆时针剖面在入口抛错', () => {
+    expect(() => extrudeX([[0, 0], [3, 0], [0, 4]], 0, 10)).toThrow(/剖面绕向错误/);
+  });
+
+  it('切块未碰到实体在出口抛错', () => {
+    const tool = boxBounds(10, 12, 0, 2, 0, 2);
+    expect(() => subtractSolid(box(6, 6, 6), tool, { group: 'cut1', name: '缺口' })).toThrow(
+      /未移除任何材料/,
+    );
+  });
+
+  it('非凸台阶棱柱不被朝向启发式翻面(体积 = 截面积 × 长)', () => {
+    const profile: Vec2[] = [
+      [0, 5], [1, 5], [1, 4], [2, 4], [2, 1.7], [3, 1.7], [3, 1], [4, 1], [4, 0], [0, 0],
+    ];
+    const mesh = buildMesh(extrudeX(profile, -4, 4));
+    near(volume(mesh), 11.7 * 8, 1e-6);
+    expect(closed(mesh)).toBe(true);
+  });
+
+  it('十题模型全部通过校验且体积为正', () => {
+    for (const p of SOLID_PROBLEMS) {
+      const built = problemSolid(p.id);
+      expect(built.solid.faces.length).toBeGreaterThan(0);
+      expect(volume(built.mesh)).toBeGreaterThan(1);
+    }
+  });
+
+  it('第 5 题非凸缺口:体积与数值积分一致(24.32)', () => {
+    near(volume(problemSolid(5).mesh), 24.323, 0.02);
   });
 });
 

@@ -27,8 +27,8 @@ export interface SolidProblem {
 
 const TRI: Vec2[] = [
   [-3, 0],
-  [3, 0],
   [0, 5],
+  [3, 0],
 ];
 
 /** 正五边形截面(尖角朝上),(z,y) 坐标,底边落在 y=0 */
@@ -36,7 +36,7 @@ const PENT_W: Vec2[] = (() => {
   const r = 3.2;
   const lift = r * Math.cos(Math.PI / 5);
   return Array.from({ length: 5 }, (_, i) => {
-    const a = Math.PI / 2 + (i * 2 * Math.PI) / 5;
+    const a = Math.PI / 2 - (i * 2 * Math.PI) / 5;
     return [r * Math.cos(a), r * Math.sin(a) + lift] as Vec2;
   });
 })();
@@ -112,7 +112,7 @@ function build5(): PolySolid {
     base,
     extrudeZ(
       [
-        // 逆时针(extrudeZ 按 CCW 生成法向,CW 会让差集取反)
+        // 逆时针(extrudeZ 入口断言要求正有向面积,否则侧面法向朝内)
         [-3.12, -0.12],
         [-1.665, 1.353],
         [1.268, 1.353],
@@ -127,18 +127,18 @@ function build5(): PolySolid {
 
 /** 第 6 题:横放阶梯棱柱,左端用 45° 斜面截切 */
 function build6(): PolySolid {
-  // (z,y) 截面:z 越小越高,台阶自前(z=4)向后(z=0)逐级升高
+  // (z,y) 截面:z 越小越高,台阶自前(z=4)向后(z=0)逐级升高;顺时针(extrudeX 右手约定)
   const profile: Vec2[] = [
-    [0, 0],
-    [4, 0],
-    [4, 1.0],
-    [3, 1.0],
-    [3, 1.7],
-    [2, 1.7],
-    [2, 4.0],
-    [1, 4.0],
-    [1, 5.0],
     [0, 5.0],
+    [1, 5.0],
+    [1, 4.0],
+    [2, 4.0],
+    [2, 1.7],
+    [3, 1.7],
+    [3, 1.0],
+    [4, 1.0],
+    [4, 0],
+    [0, 0],
   ];
   let s = extrudeX(profile, -4, 4);
   s = cutSolid(s, [
@@ -237,7 +237,7 @@ function build10(): PolySolid {
   );
   const base: PolySolid = { faces, groups };
   // 缺口(题源 hi-09 V 视量取):下斜切面交于左下角,立切面在 x=1.44 从 y=1.56 到 4.86,
-  // 上斜切面止于锥体左棱 A;逆时针(extrudeZ 按 CCW 生成法向,CW 会让差集取反)
+  // 上斜切面止于锥体左棱 A;逆时针(extrudeZ 入口断言要求正有向面积)
   const notch = extrudeZ(
     [
       [-r - 0.1, 0],
