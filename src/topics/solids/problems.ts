@@ -236,14 +236,15 @@ function build10(): PolySolid {
     (g, i, arr) => used.has(g.id) && arr.findIndex((x) => x.id === g.id) === i,
   );
   const base: PolySolid = { faces, groups };
-  // 缺口:左棱柱边 → 锥体左棱 → 斜切面 → 立切面 → 下斜切面,回到左棱柱边
+  // 缺口(题源 hi-09 V 视量取):下斜切面交于左下角,立切面在 x=1.44 从 y=1.56 到 4.86,
+  // 上斜切面止于锥体左棱 A;逆时针(extrudeZ 按 CCW 生成法向,CW 会让差集取反)
   const notch = extrudeZ(
     [
-      [-r, 0.68],
-      [-r, blockH],
-      [-1.01, 5.65],
-      [1.41, 4.3],
-      [1.41, 2.25],
+      [-r - 0.1, 0],
+      [1.44, 1.56],
+      [1.44, 4.86],
+      [-0.99, 5.76],
+      [-r - 0.1, blockH],
     ],
     -r - 1,
     r + 1,
